@@ -1491,103 +1491,232 @@
 
 
 // ---- src/js/04-auth.js ----
+    // Authentication UI: forms remain mounted while requests are in flight.
+    const authIcons = {
+      mail: '<svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="3"/><path d="m4 7 8 6 8-6"/></svg>',
+      lock: '<svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><rect x="5" y="10" width="14" height="11" rx="3"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg>',
+      user: '<svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21v-2a8 8 0 0 1 16 0v2"/></svg>',
+      eye: '<svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6S2 12 2 12Z"/><circle cx="12" cy="12" r="2.5"/></svg>',
+      eyeOff: '<svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="m3 3 18 18M9.8 6.2A11.3 11.3 0 0 1 12 6c6.5 0 10 6 10 6a15 15 0 0 1-3.4 3.9M6.2 6.8C3.4 8.6 2 12 2 12s3.5 6 10 6c1.1 0 2.1-.2 3-.5"/></svg>',
+      leaf: '<svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M20 4c-8 0-15 4-15 10a5 5 0 0 0 5 5c6 0 10-7 10-15Z"/><path d="M4 21 15 10"/></svg>',
+      check: '<svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="m5 12 4 4L19 6"/></svg>',
+      arrow: '<svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M19 12H5m7 7-7-7 7-7"/></svg>'
+    };
+
+    function authArt() {
+      return `
+        <svg class="auth-art" viewBox="0 0 400 300" aria-hidden="true">
+          <circle cx="206" cy="150" r="116" fill="#275848"/>
+          <circle cx="206" cy="150" r="91" fill="none" stroke="#8cb69b" stroke-width="1" stroke-dasharray="4 7" opacity=".6"/>
+          <path d="M89 237c51-31 88-38 126-35 39 3 67 21 104 35" fill="none" stroke="#a7c9af" stroke-width="2" stroke-linecap="round"/>
+          <path d="M206 231V140c0-38 19-61 47-77" stroke="#e6f1d5" stroke-width="4" fill="none" stroke-linecap="round"/>
+          <path d="M207 170c-3-57-29-88-84-91-1 49 29 82 84 91Z" fill="#9fc68e"/>
+          <path d="M208 138c17-51 49-78 100-75-8 48-44 74-100 75Z" fill="#d8eaa9"/>
+          <path d="M209 208c24-37 52-51 89-47-14 35-44 51-89 47Z" fill="#6ea583"/>
+          <path d="M206 202c-26-34-51-46-91-42 11 32 41 49 91 42Z" fill="#c5dbab"/>
+          <path d="M142 97c29 16 48 38 65 73m77-91c-31 14-54 33-76 59M132 172c30 5 53 16 74 30m72-30c-30 7-46 16-69 36" fill="none" stroke="#386448" stroke-width="2" stroke-linecap="round" opacity=".7"/>
+          <circle cx="99" cy="60" r="5" fill="#d8eaa9"/>
+          <circle cx="335" cy="199" r="7" fill="#d8eaa9" opacity=".85"/>
+          <path d="M328 94v18m-9-9h18M72 188v14m-7-7h14" stroke="#b7d398" stroke-width="2" stroke-linecap="round"/>
+        </svg>`;
+    }
+
+    function authBrandHtml(logo) {
+      return `
+        <section class="auth-brand-panel" aria-label="Green Passport">
+          <div class="auth-logo-wrap">
+            <div class="auth-logo">${logo ? `<img src="${escapeAttr(logo)}" alt="Green Passport">` : 'GP'}</div>
+            <div class="auth-brand-name"><h1>Green Passport</h1><p>ST. THERESA · ZERO WASTE</p></div>
+          </div>
+          <div class="auth-brand-content">
+            <div class="auth-brand-eyebrow">${authIcons.leaf} GREEN COMMUNITY</div>
+            <h2>เริ่มจากเรา<br>เพื่อโลกที่ดีขึ้น</h2>
+            <p>บันทึกทุกการเปลี่ยนแปลง เรียนรู้การแยกขยะ และร่วมสร้างโรงเรียนสีเขียวไปด้วยกัน</p>
+            ${authArt()}
+          </div>
+          <div class="auth-brand-footer"><span class="auth-brand-dot"></span><span>ทุกการกระทำเล็ก ๆ มีความหมาย</span></div>
+        </section>`;
+    }
+
+    function authPasswordField(id, name, label, autocomplete, placeholder, min = 8) {
+      return `<div class="auth-field"><label class="auth-field-label" for="${id}">${label}</label>
+        <span class="auth-input-wrap"><span class="auth-input-icon">${authIcons.lock}</span>
+          <input id="${id}" name="${name}" type="password" autocomplete="${autocomplete}" required minlength="${min}" placeholder="${placeholder}">
+          <button type="button" class="auth-password-toggle" aria-label="แสดงรหัสผ่าน" aria-pressed="false" data-password="${id}">${authIcons.eye}</button>
+        </span></div>`;
+    }
+
+    function authEmailField(id, name, label = 'อีเมล') {
+      return `<label class="auth-field" for="${id}"><span>${label}</span>
+        <span class="auth-input-wrap"><span class="auth-input-icon">${authIcons.mail}</span>
+          <input id="${id}" name="${name}" type="email" autocomplete="email" maxlength="90" required placeholder="name@example.com">
+        </span></label>`;
+    }
+
+    function loginFormHtml() {
+      return `
+        <form class="auth-form auth-login-form" id="loginForm" onsubmit="submitLogin(event)">
+          <div class="auth-heading"><span class="auth-kicker">WELCOME BACK</span><h2>ยินดีต้อนรับกลับมา</h2><p>เข้าสู่ระบบเพื่อสานต่อภารกิจรักษ์โลกของคุณ</p></div>
+          <div class="auth-fields">
+            ${authEmailField('loginUsername', 'login')}
+            ${authPasswordField('loginPassword', 'password', 'รหัสผ่าน', 'current-password', 'กรอกรหัสผ่าน', 1)}
+          </div>
+          <div class="auth-help"><button type="button" class="auth-text-button" onclick="showAuthHelp()">มีปัญหาในการเข้าสู่ระบบ?</button></div>
+          <button class="auth-primary" type="submit" data-busy-label="กำลังเข้าสู่ระบบ..." data-label="เข้าสู่ระบบ">เข้าสู่ระบบ</button>
+          <p class="auth-switch">ยังไม่มีบัญชี? <button type="button" onclick="setAuthMode('signup')">สมัครสมาชิก</button></p>
+        </form>`;
+    }
+
+    function signupFormHtml() {
+      return `
+        <form class="auth-form auth-signup-form" id="signupForm" onsubmit="authSubmitSignup(event)" novalidate>
+          <div class="auth-heading"><span class="auth-kicker">JOIN THE COMMUNITY</span><h2>สร้างบัญชีของคุณ</h2><p>เริ่มต้นเส้นทาง Green Passport ใน 2 ขั้นตอน</p></div>
+          <ol class="auth-steps" aria-label="ขั้นตอนสมัครสมาชิก">
+            <li class="auth-step is-current" data-step-indicator="1"><span class="auth-step-number">1</span><span>ข้อมูลบัญชี</span></li>
+            <li class="auth-step" data-step-indicator="2"><span class="auth-step-number">2</span><span>ข้อมูลส่วนตัว</span></li>
+          </ol>
+          <div data-signup-step="1" class="auth-step-fields">
+            ${authEmailField('signupEmail', 'Email')}
+            <label class="auth-field" for="signupUsername"><span>ชื่อผู้ใช้</span><span class="auth-input-wrap"><span class="auth-input-icon">${authIcons.user}</span><input id="signupUsername" name="Username" required maxlength="40" autocomplete="username" placeholder="green.student"></span><small>ใช้แสดงตัวตนในชุมชน การเข้าสู่ระบบใช้อีเมล</small></label>
+            ${authPasswordField('signupPassword', 'Password', 'รหัสผ่าน', 'new-password', 'อย่างน้อย 8 ตัวอักษร')}
+            <div class="auth-password-meter" aria-live="polite"><span class="auth-password-bar"><span id="authPasswordFill"></span></span><span id="authPasswordHint">รหัสผ่านอย่างน้อย 8 ตัวอักษร</span></div>
+            ${authPasswordField('signupConfirmPassword', 'ConfirmPassword', 'ยืนยันรหัสผ่าน', 'new-password', 'กรอกรหัสผ่านอีกครั้ง')}
+            <button type="button" class="auth-primary" data-auth-next>ถัดไป</button>
+          </div>
+          <div data-signup-step="2" class="auth-step-fields" hidden>
+            <div class="auth-grid">
+              <label class="auth-field" for="signupFirstName"><span>ชื่อจริง</span><input id="signupFirstName" name="FirstName" required maxlength="60" autocomplete="given-name" placeholder="ชื่อ"></label>
+              <label class="auth-field" for="signupLastName"><span>นามสกุล</span><input id="signupLastName" name="LastName" required maxlength="60" autocomplete="family-name" placeholder="นามสกุล"></label>
+              <label class="auth-field" for="signupDisplayName"><span>ชื่อที่แสดง <small>ไม่บังคับ</small></span><input id="signupDisplayName" name="DisplayName" maxlength="50" placeholder="ชื่อเล่น"></label>
+              <label class="auth-field" for="signupRole"><span>ประเภทบัญชี</span><select id="signupRole" name="Role" required><option value="student">นักเรียน</option><option value="parent">ผู้ปกครอง</option></select></label>
+              <label class="auth-field" for="signupClass"><span>ชั้น / ห้อง <small>ไม่บังคับ</small></span><input id="signupClass" name="ClassName" maxlength="30" placeholder="ม.1/1"></label>
+              <label class="auth-field" for="signupStudentID"><span>รหัสนักเรียน <small>ไม่บังคับ</small></span><input id="signupStudentID" name="StudentID" maxlength="40" placeholder="ST001" autocomplete="off"></label>
+              <label class="auth-field auth-full" for="signupHousehold"><span>ชื่อครัวเรือน <small>ไม่บังคับ</small></span><input id="signupHousehold" name="HouseholdName" maxlength="80" placeholder="ชื่อครอบครัวหรือครัวเรือน"></label>
+            </div>
+            <label class="auth-consent"><input name="Consent" type="checkbox" required><span>ยินยอมให้ใช้ข้อมูลที่กรอกเพื่อบันทึกกิจกรรมและแสดงผลในระบบ Green Passport ของโรงเรียน</span></label>
+            <div class="auth-note">${authIcons.leaf}<span>บัญชีจะเปิดใช้งานหลังยืนยันอีเมลและได้รับอนุมัติจากโรงเรียน</span></div>
+            <div class="auth-actions"><button type="button" class="auth-secondary" data-auth-back>${authIcons.arrow} ย้อนกลับ</button><button class="auth-primary" type="submit" data-busy-label="กำลังสร้างบัญชี..." data-label="สร้างบัญชี">สร้างบัญชี</button></div>
+          </div>
+          <p class="auth-switch">มีบัญชีอยู่แล้ว? <button type="button" onclick="setAuthMode('login')">เข้าสู่ระบบ</button></p>
+        </form>`;
+    }
+
+    function authDisplayMessage(message) {
+      if (/invalid login credentials/i.test(message)) return 'อีเมลหรือรหัสผ่านไม่ถูกต้อง กรุณาตรวจสอบอีกครั้ง';
+      if (/email not confirmed/i.test(message)) return 'กรุณายืนยันอีเมลก่อนเข้าสู่ระบบ';
+      if (/user already registered/i.test(message)) return 'อีเมลนี้มีบัญชีอยู่แล้ว กรุณาเข้าสู่ระบบ';
+      if (/rate limit/i.test(message)) return 'มีการส่งคำขอหลายครั้ง กรุณารอสักครู่แล้วลองใหม่';
+      return message;
+    }
+
     function renderAuth() {
       document.body.classList.add('auth-locked');
       document.body.classList.remove('chat-active');
       const screen = document.getElementById('authScreen');
       if (!screen) return;
       const mode = state.authMode === 'signup' ? 'signup' : 'login';
-      const logo = greenPassportLogoSrc();
-      const busy = state.authBusy ? 'disabled' : '';
-      const message = state.authMessage
-        ? `<div class="auth-status ${state.authMessageType === 'bad' ? 'bad' : ''}">${escapeHtml(state.authMessage)}</div>`
-        : '';
-      screen.innerHTML = `
-        <div class="auth-shell">
-          <section class="auth-brand-panel">
-            <div>
-              <div class="auth-logo-wrap">
-                <div class="auth-logo">${logo ? `<img src="${escapeAttr(logo)}" alt="Green Passport logo">` : 'GP'}</div>
-                <div>
-                  <h1>Green Passport</h1>
-                  <p>St. Theresa Zero Waste</p>
-                </div>
-              </div>
-            </div>
-            <ul class="auth-brand-list">
-              <li>บันทึกข้อมูลขยะและคำนวณคาร์บอนในบัญชีเดียว</li>
-              <li>เชื่อมต่อชุมชน Green Passport, แชท, เกม และโปรไฟล์ผู้ใช้</li>
-              <li>ข้อมูลผู้ใช้ถูกใช้เติมฟอร์มอัตโนมัติ ลดการกรอกซ้ำและลดการใช้ชื่อผิด</li>
-            </ul>
-          </section>
-          <section class="auth-form-panel">
-            <div class="auth-tabs" role="tablist" aria-label="Auth tabs">
-              <button class="auth-tab ${mode === 'login' ? 'active' : ''}" type="button" onclick="setAuthMode('login')">Login</button>
-              <button class="auth-tab ${mode === 'signup' ? 'active' : ''}" type="button" onclick="setAuthMode('signup')">Sign Up</button>
-            </div>
-            ${message}
-            ${mode === 'login' ? loginFormHtml(busy) : signupFormHtml(busy)}
-          </section>
-        </div>`;
-      requestAnimationFrame(() => document.getElementById(mode === 'login' ? 'loginUsername' : 'signupFirstName')?.focus());
+      const newForm = screen.dataset.mode !== mode || !screen.querySelector('.auth-form');
+      if (newForm) {
+        screen.dataset.mode = mode;
+        screen.innerHTML = `
+          <div class="auth-shell auth-mode-${mode}">
+            ${authBrandHtml(greenPassportLogoSrc())}
+            <section class="auth-form-panel" aria-label="${mode === 'login' ? 'เข้าสู่ระบบ' : 'สมัครสมาชิก'}">
+              <div class="auth-mobile-brand"><span class="auth-mobile-mark">${greenPassportLogoSrc() ? `<img src="${escapeAttr(greenPassportLogoSrc())}" alt="">` : authIcons.leaf}</span><strong>Green Passport</strong><span>St. Theresa</span></div>
+              <nav class="auth-tabs" aria-label="เลือกหน้าบัญชี">
+                <button class="auth-tab ${mode === 'login' ? 'active' : ''}" type="button" aria-pressed="${mode === 'login'}" onclick="setAuthMode('login')">เข้าสู่ระบบ</button>
+                <button class="auth-tab ${mode === 'signup' ? 'active' : ''}" type="button" aria-pressed="${mode === 'signup'}" onclick="setAuthMode('signup')">สมัครสมาชิก</button>
+              </nav>
+              <div id="authStatus" class="auth-status" role="status" aria-live="polite" hidden></div>
+              ${mode === 'login' ? loginFormHtml() : signupFormHtml()}
+              <footer class="auth-form-footer">Green Passport <span>·</span> Saint Theresa School</footer>
+            </section>
+          </div>`;
+        bindAuthUI(screen);
+        if (mode === 'signup') setSignupStep(1);
+      }
+      const status = screen.querySelector('#authStatus');
+      status.hidden = !state.authMessage;
+      status.classList.toggle('bad', state.authMessageType === 'bad');
+      status.textContent = authDisplayMessage(state.authMessage || '');
+      const form = screen.querySelector('.auth-form');
+      form.setAttribute('aria-busy', String(!!state.authBusy));
+      screen.querySelectorAll('button').forEach(button => { button.disabled = !!state.authBusy; });
+      screen.querySelectorAll('[data-busy-label]').forEach(button => {
+        button.textContent = state.authBusy ? button.dataset.busyLabel : button.dataset.label;
+        button.classList.toggle('is-loading', !!state.authBusy);
+      });
     }
 
-    function loginFormHtml(busy) {
-      return `
-        <form class="auth-form" id="loginForm" onsubmit="submitLogin(event)">
-          <div>
-            <h2>Login</h2>
-            <p>เข้าสู่ระบบเพื่อใช้งาน Green Passport และบันทึกข้อมูลในชื่อของคุณ</p>
-          </div>
-          <label>Username / Email / Student ID
-            <input id="loginUsername" name="login" type="text" autocomplete="username" required placeholder="เช่น student01 หรือ ST001">
-          </label>
-          <label>Password
-            <input id="loginPassword" name="password" type="password" autocomplete="current-password" required minlength="6" placeholder="รหัสผ่าน">
-          </label>
-          <div class="auth-help">
-            <label style="display:flex;align-items:center;gap:8px;margin:0"><input name="remember" type="checkbox" checked style="width:auto;min-height:auto"> Remember me</label>
-            <button type="button" onclick="showAuthHelp()">ลืมรหัสผ่าน?</button>
-          </div>
-          <button class="btn" type="submit" ${busy}>${state.authBusy ? 'กำลังเข้าสู่ระบบ...' : 'Login'}</button>
-          <p class="notice">ยังไม่มีบัญชี? กด Sign Up เพื่อสมัครบัญชีใหม่ก่อนใช้งานระบบ</p>
-        </form>`;
+    function bindAuthUI(screen) {
+      screen.querySelectorAll('[data-password]').forEach(button => {
+        button.addEventListener('click', () => {
+          const input = document.getElementById(button.dataset.password);
+          if (!input) return;
+          const visible = input.type === 'password';
+          input.type = visible ? 'text' : 'password';
+          button.setAttribute('aria-label', visible ? 'ซ่อนรหัสผ่าน' : 'แสดงรหัสผ่าน');
+          button.setAttribute('aria-pressed', String(visible));
+          button.innerHTML = visible ? authIcons.eyeOff : authIcons.eye;
+        });
+      });
+      screen.querySelector('[data-auth-next]')?.addEventListener('click', () => {
+        if (validateSignupStep(1)) setSignupStep(2, true);
+      });
+      screen.querySelector('[data-auth-back]')?.addEventListener('click', () => setSignupStep(1, true));
+      const password = screen.querySelector('#signupPassword');
+      const confirm = screen.querySelector('#signupConfirmPassword');
+      if (password) password.addEventListener('input', () => {
+        const length = password.value.length;
+        const fill = screen.querySelector('#authPasswordFill');
+        const hint = screen.querySelector('#authPasswordHint');
+        fill.style.width = Math.min(100, length / 8 * 100) + '%';
+        fill.classList.toggle('is-valid', length >= 8);
+        hint.textContent = length >= 8 ? 'ความยาวรหัสผ่านผ่านเกณฑ์แล้ว' : 'รหัสผ่านอย่างน้อย 8 ตัวอักษร';
+        confirm.setCustomValidity('');
+      });
+      if (confirm) confirm.addEventListener('input', () => confirm.setCustomValidity(''));
     }
 
-    function signupFormHtml(busy) {
-      return `
-        <form class="auth-form" id="signupForm" onsubmit="submitSignup(event)">
-          <div>
-            <h2>Sign Up</h2>
-            <p>สร้างบัญชีสำหรับนักเรียน ผู้ปกครอง หรือครูที่ใช้ระบบ Green Passport</p>
-          </div>
-          <div class="auth-grid">
-            <label>ชื่อ<input id="signupFirstName" name="FirstName" required maxlength="60" autocomplete="given-name"></label>
-            <label>นามสกุล<input name="LastName" required maxlength="60" autocomplete="family-name"></label>
-            <label>ชื่อที่แสดง<input name="DisplayName" maxlength="50" placeholder="เช่น น้องต้นกล้า"></label>
-            <label>บทบาท
-              <select name="Role" required>
-                <option value="student">นักเรียน</option>
-                <option value="parent">ผู้ปกครอง</option>
-                <option value="teacher">ครู</option>
-                <option value="leader">ผู้บริหาร/ผู้ประสานงาน</option>
-              </select>
-            </label>
-            <label>ชั้น/ห้อง<input name="ClassName" maxlength="30" placeholder="เช่น ม.1/1"></label>
-            <label>รหัสนักเรียน / รหัสผู้ใช้<input name="StudentID" maxlength="40" placeholder="เช่น ST001"></label>
-            <label class="auth-full">ชื่อครัวเรือน<input name="HouseholdName" maxlength="80" placeholder="เช่น บ้านรักษ์โลก"></label>
-            <label>Username<input name="Username" required maxlength="40" autocomplete="username" placeholder="ใช้สำหรับ Login"></label>
-            <label>Email<input name="Email" type="email" maxlength="90" autocomplete="email" placeholder="name@example.com"></label>
-            <label>Password<input id="signupPassword" name="Password" type="password" required minlength="6" autocomplete="new-password"></label>
-            <label>Confirm Password<input name="ConfirmPassword" type="password" required minlength="6" autocomplete="new-password"></label>
-            <label class="auth-full"><span><input name="Consent" type="checkbox" required style="width:auto;min-height:auto"> ยินยอมให้ระบบใช้ข้อมูลบัญชีเพื่อบันทึกกิจกรรม โปรไฟล์ ชุมชน แชท และรายงานผลโครงการ</span></label>
-          </div>
-          <button class="btn" type="submit" ${busy}>${state.authBusy ? 'กำลังสร้างบัญชี...' : 'Sign Up'}</button>
-          <p class="notice">บัญชีนี้จะใช้เป็นตัวตนหลักของระบบ และ Admin ยังต้องเข้าใช้งานด้วย PIN แยกต่างหาก</p>
-        </form>`;
+    function validateSignupStep(step) {
+      const root = document.querySelector('[data-signup-step="' + step + '"]');
+      if (step === 1) {
+        const password = document.getElementById('signupPassword');
+        const confirm = document.getElementById('signupConfirmPassword');
+        confirm.setCustomValidity(password.value === confirm.value ? '' : 'รหัสผ่านทั้งสองช่องไม่ตรงกัน');
+      }
+      return [...root.querySelectorAll('input, select')].every(input => input.reportValidity());
+    }
+
+    function setSignupStep(step, focus = false) {
+      const form = document.getElementById('signupForm');
+      if (!form) return;
+      form.dataset.step = String(step);
+      form.querySelectorAll('[data-signup-step]').forEach(panel => { panel.hidden = Number(panel.dataset.signupStep) !== step; });
+      form.querySelectorAll('[data-step-indicator]').forEach(indicator => {
+        const current = Number(indicator.dataset.stepIndicator);
+        indicator.classList.toggle('is-current', current === step);
+        indicator.classList.toggle('is-complete', current < step);
+        if (current === step) indicator.setAttribute('aria-current', 'step');
+        else indicator.removeAttribute('aria-current');
+        indicator.querySelector('.auth-step-number').innerHTML = current < step ? authIcons.check : current;
+      });
+      if (focus) form.querySelector('[data-signup-step="' + step + '"] input')?.focus({ preventScroll: false });
+    }
+
+    function authSubmitSignup(event) {
+      event.preventDefault();
+      const step = Number(event.currentTarget.dataset.step || 1);
+      if (step === 1) {
+        if (validateSignupStep(1)) setSignupStep(2, true);
+        return;
+      }
+      if (!validateSignupStep(2)) return;
+      submitSignup(event);
     }
 
     function setAuthMode(mode) {
+      if (state.authBusy) return;
       state.authMode = mode === 'signup' ? 'signup' : 'login';
       state.authMessage = '';
       state.authMessageType = '';
@@ -1601,7 +1730,7 @@
     }
 
     function showAuthHelp() {
-      setAuthMessage('ถ้าลืมรหัสผ่าน ให้ติดต่อครูหรือผู้ดูแลระบบเพื่อรีเซ็ตรหัสผ่านในชีต AppUsers หรือสมัครบัญชีใหม่สำหรับโหมดทดสอบในเครื่อง', '');
+      setAuthMessage('กรุณาใช้อีเมลที่สมัครและยืนยันอีเมลแล้ว หากบัญชียังรออนุมัติหรือลืมรหัสผ่าน โปรดติดต่อผู้ดูแลระบบของโรงเรียน', '');
     }
 
     function authLookupKey(value) {
@@ -5001,6 +5130,8 @@ async function gpSetUser() {
   state.authMessage = ''; state.authMessageType = '';
   applyCurrentUserToState(); renderNav();
   await reloadData(true);
+  const authScreen = document.getElementById('authScreen');
+  if (authScreen) { authScreen.replaceChildren(); delete authScreen.dataset.mode; }
   if (state.active === 'chat') subscribeToFirebaseChat(state.chatRoom || 'CR-MISSION-01');
   renderAll();
 }

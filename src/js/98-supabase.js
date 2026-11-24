@@ -103,6 +103,8 @@ async function gpSetUser() {
   state.authMessage = ''; state.authMessageType = '';
   applyCurrentUserToState(); renderNav();
   await reloadData(true);
+  const authScreen = document.getElementById('authScreen');
+  if (authScreen) { authScreen.replaceChildren(); delete authScreen.dataset.mode; }
   if (state.active === 'chat') subscribeToFirebaseChat(state.chatRoom || 'CR-MISSION-01');
   renderAll();
 }
