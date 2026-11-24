@@ -139,6 +139,7 @@
         if (!await customConfirm('ยังไม่ได้บันทึกข้อมูล ต้องการออกจากหน้านี้หรือไม่?')) return;
         state.recordDirty = false;
       }
+      if (state.active === 'record' && page !== 'record') state.editingRecordId = '';
       state.active = page;
       if (typeof gpStopChat === 'function' && page !== 'chat') gpStopChat();
       if (page === 'chat' && typeof subscribeToFirebaseChat === 'function') {

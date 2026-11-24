@@ -128,6 +128,15 @@ async function sheetApi(action, payload = {}) {
     next.record.EvidenceFileNames = files.map(file => file.name).join(', ');
     delete next.record.EvidenceFiles;
   }
+  if (action === 'updateWasteRecord') {
+    const files = next.record.EvidenceFiles || [];
+    if (files.length > 5) throw new Error('แนบรูปหลักฐานได้ไม่เกิน 5 รูป');
+    if (files.length) {
+      next.record.EvidencePaths = await Promise.all(files.map(file => gpUpload('gp-evidence', file)));
+      next.record.EvidenceFileNames = files.map(file => file.name).join(', ');
+    }
+    delete next.record.EvidenceFiles;
+  }
   if (action === 'appendChatMessage') {
     const m = next.message;
     if (m.ImageLink?.startsWith('data:')) m.ImagePath = await gpUpload('gp-chat', { data: m.ImageLink }, m.ChatRoomID);
@@ -135,7 +144,7 @@ async function sheetApi(action, payload = {}) {
   }
   const result = await gpCall(action, next);
   if (action === 'appendGameScore') result.gameScores = (await gpCall('getBootstrapData')).gameScores;
-  if (action === 'appendWasteRecord' && result.record?.EvidencePaths?.length) {
+  if ((action === 'appendWasteRecord' || action === 'updateWasteRecord') && result.record?.EvidencePaths?.length) {
     result.record.EvidenceFolderLink = await gpSignedUrl('gp-evidence', result.record.EvidencePaths[0]);
   }
   return result;

@@ -14,6 +14,7 @@
       chatIdentity: readJsonStorage('greenPassportChatIdentity', {}),
       chatReactions: readJsonStorage('greenPassportChatReactions', {}),
       replyToMessageID: '',
+      editingRecordId: '',
       game: createInitialGameState(),
     };
 
@@ -602,6 +603,8 @@
       return {
         getBootstrapData: ['กำลังโหลดข้อมูลล่าสุด', 'ระบบกำลังอ่านข้อมูลจาก Google Sheets'],
         appendWasteRecord: ['กำลังบันทึกข้อมูลขยะ', 'ระบบกำลังส่งข้อมูลและหลักฐานไปยัง Google Sheets'],
+        updateWasteRecord: ['กำลังอัปเดตข้อมูลขยะ', 'ระบบกำลังบันทึกการแก้ไขรายการขยะของคุณ'],
+        deleteWasteRecord: ['กำลังลบข้อมูลขยะ', 'ระบบกำลังลบรายการบันทึกขยะของคุณ'],
         appendGameScore: ['กำลังบันทึกคะแนนเกม', 'ระบบกำลังบันทึกคะแนน Trash Hero Academy'],
         appendCommunityPost: ['กำลังบันทึกโพสต์', 'ระบบกำลังส่งโพสต์ไปยัง Google Sheets'],
         appendPostComment: ['กำลังบันทึกความคิดเห็น', 'ระบบกำลังส่งความคิดเห็นไปยัง Google Sheets'],

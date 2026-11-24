@@ -144,15 +144,20 @@ body[data-workspace-page]:not([data-workspace-page="impact"]):not([data-workspac
 .workspace-card-heading p { margin: 3px 0 0 !important; color: #728078; font-size: 13px !important; }
 .workspace-card-heading .workspace-link { padding-top: 0; }
 .workspace-record-list { display: grid; gap: 0; }
-.workspace-record-row { display: flex; align-items: center; gap: 11px; padding: 12px 0; border-bottom: 1px solid #e8ede8; }
+.workspace-record-row { display: flex; align-items: center; flex-wrap: wrap; gap: 11px; padding: 12px 0; border-bottom: 1px solid #e8ede8; }
 .workspace-record-row:last-child { border-bottom: 0; padding-bottom: 0; }
+.workspace-record-row.is-editing { background: #f4faf5; border-radius: 10px; padding: 12px; border-bottom-color: transparent; }
 .workspace-record-icon { display: grid; place-items:center; color: #39714e; background: #edf3ee; width: 34px; height: 34px; border-radius:8px; flex:0 0 34px; }
 .workspace-record-icon svg { width: 19px; height:19px; }
-.workspace-record-name { flex: 1; min-width:0; }
+.workspace-record-name { flex: 1 1 180px; min-width:0; }
 .workspace-record-name strong { display:block; font-size:14px; font-weight:600; }
 .workspace-record-name small { display:block; font-size:12px; color:#748179; margin-top:2px; }
+.workspace-record-comment { color: #9a5b13 !important; }
 .workspace-record-status { color:#826d36; background:#f7f0df; padding:5px 9px; font-size:11px; font-weight:600; white-space:normal; border-radius:6px; }
 .workspace-record-status.is-approved { background:#e7f4e8; color:#2b7047; }
+.workspace-record-actions { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.workspace-btn-sm { padding: 6px 11px !important; font-size: 12px !important; min-height: 32px; }
+.workspace-my-records { margin-top: 16px; }
 .workspace-recent-empty { padding: 18px 8px; display:grid; justify-items:center; text-align:center; gap:8px; }
 .workspace-recent-empty strong { font-size:15px; font-weight:700; }
 .workspace-recent-empty p { color:#748179; font-size:13px; margin:0 0 3px; }
