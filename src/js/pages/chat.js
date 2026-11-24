@@ -236,6 +236,16 @@
       });
     }
 
+    function refreshChatMessages() {
+      const windowEl = document.getElementById('chatWindow');
+      if (!windowEl) { renderChat(); return; }
+      const messages = (state.data.chatMessages || []).filter(m => m.ChatRoomID === state.chatRoom && !statusIsHidden(m.ModerationStatus)).sort((a,b)=>String(a.Timestamp||'').localeCompare(String(b.Timestamp||'')));
+      const nearBottom = windowEl.scrollHeight - windowEl.clientHeight - windowEl.scrollTop < 100;
+      const previousTop = windowEl.scrollTop;
+      windowEl.innerHTML = messages.length ? `${messages.some(m=>truthy(m.IsPinned)) ? '<div class="chat-system">มีข้อความปักหมุดในห้องนี้</div>' : ''}${chatMessageStreamHtml(messages)}` : '<div class="chat-system">ยังไม่มีข้อความ ลองทักทายเพื่อน ๆ ได้เลย</div>';
+      windowEl.scrollTop = nearBottom ? windowEl.scrollHeight : previousTop;
+    }
+
     function setChatRoom(roomId) {
       state.chatRoom = roomId;
       state.replyToMessageID = '';
@@ -345,61 +355,39 @@
     async function sendChatMessage(event) {
       event.preventDefault();
       const form = event.currentTarget;
-      const data = Object.fromEntries(new FormData(form).entries());
-      const fileInput = document.getElementById('chatImageFile');
-      const imagePayload = fileInput?.files?.length ? (await filesToPayload(fileInput.files))[0] : null;
-      const text = String(data.MessageText || '').trim();
-      if (!text && !imagePayload) {
-        alert('กรุณาพิมพ์ข้อความหรือแนบรูปภาพก่อนส่ง');
-        return;
-      }
+      const input = document.getElementById('chatMessageInput');
+      const file = document.getElementById('chatImageFile')?.files?.[0];
+      const text = String(input?.value || '').trim();
+      if (!text && !file) { alert('กรุณาพิมพ์ข้อความหรือแนบรูปภาพก่อนส่ง'); return; }
+      if (file && (file.size > 5*1024*1024 || !['image/jpeg','image/png','image/webp'].includes(file.type))) { alert('รองรับรูป JPG, PNG, WebP ขนาดไม่เกิน 5 MB'); return; }
       const check = moderateMessageText(text);
-      if (!check.ok) {
-        alert(check.message);
-        return;
-      }
-      state.chatIdentity = {
-        DisplayName: data.DisplayName || '',
-        ClassName: data.ClassName || '',
-        UserID: data.UserID || data.DisplayName || '',
-      };
-      localStorage.setItem('greenPassportChatIdentity', JSON.stringify(state.chatIdentity));
-      const message = {
-        MessageID: `MSG-${Date.now()}`,
-        ChatRoomID: state.chatRoom,
-        Timestamp: nowStamp(),
-        UserID: data.UserID || data.DisplayName || 'guest',
-        DisplayName: data.DisplayName,
-        ClassName: data.ClassName,
-        MessageText: text,
-        ImageLink: imagePayload?.data || '',
-        MessageType: imagePayload ? 'image' : 'text',
-        ReplyToMessageID: state.replyToMessageID || '',
-        IsPinned: false,
-        ReportStatus: '',
-        ModerationStatus: 'ปกติ',
-      };
-      if (firebaseDb) {
-        try {
-          await firebaseDb.ref(`chatMessages/${state.chatRoom}/${message.MessageID}`).set(message);
-        } catch (error) {
-          console.error("Firebase send message error:", error);
-          alert("ส่งข้อความเข้า Firebase ไม่สำเร็จ: " + error.message);
-        }
-      } else {
-        try {
+      if (!check.ok) { alert(check.message); return; }
+      const button = form.querySelector('[type="submit"]');
+      if (button?.disabled) return;
+      if (button) button.disabled = true;
+      try {
+        const room = state.chatRoom;
+        const identity = currentUserIdentity();
+        const imagePayload = file ? (await filesToPayload([file]))[0] : null;
+        const message = {
+          MessageID: `MSG-${Date.now()}`, ChatRoomID: room, Timestamp: nowStamp(),
+          UserID: identity.UserID, DisplayName: identity.DisplayName, ClassName: identity.ClassName,
+          MessageText: text, ImageLink: imagePayload?.data || '', MessageType: imagePayload ? 'image' : 'text',
+          ReplyToMessageID: state.replyToMessageID || '', IsPinned: false, ReportStatus: '', ModerationStatus: 'ปกติ'
+        };
+        if (firebaseDb) await firebaseDb.ref(`chatMessages/${room}/${message.MessageID}`).set(message);
+        else {
           const result = await sheetApi('appendChatMessage', { message });
           state.data.chatMessages.push(normalizeRow(result.message || message));
-        } catch (error) {
-          state.data.chatMessages.push(normalizeRow(message));
-          queuePendingWrite('appendChatMessage', { message });
-          alert('บันทึกข้อความไว้ในเครื่องแล้ว และจะส่งเข้า Google Sheets เมื่อเชื่อมต่อได้');
         }
-      }
-      saveToLocalStorage();
-      state.replyToMessageID = '';
-      form.reset();
-      renderChat();
+        if (state.active === 'chat' && state.chatRoom === room) {
+          state.replyToMessageID = ''; form.reset(); renderChat();
+          document.getElementById('chatMessageInput')?.focus();
+        }
+      } catch (error) {
+        console.warn('Chat message failed', error);
+        alert('ส่งข้อความไม่สำเร็จ ลองใหม่อีกครั้งได้เลย ข้อความที่พิมพ์ไว้ยังอยู่');
+      } finally { if (button) button.disabled = false; }
     }
 
     async function sendSticker(text) {

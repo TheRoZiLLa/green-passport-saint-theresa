@@ -307,8 +307,10 @@
     const adminOnlyPageIds = new Set(['dashboard','compare','formula','missions','reminders','studentRoles','starterKit','certificate']);
 
     function mainNavPages() {
-      return pages.filter(([id]) => !adminOnlyPageIds.has(id));
+      return pages.filter(([id]) => !adminOnlyPageIds.has(id) && (id !== 'admin' || isStaffUser()));
     }
+
+    function isStaffUser() { return ['teacher', 'admin'].includes(state?.currentUser?.Role); }
 
     function adminToolPages() {
       return pages.filter(([id]) => adminOnlyPageIds.has(id));
@@ -2274,7 +2276,7 @@
       }
       const user = currentUserIdentity();
       const chipHtml = `
-        <button type="button" class="auth-user-profile-trigger" onclick="showPage('profile')" title="เปิดโปรไฟล์">
+        <button type="button" class="auth-user-profile-trigger" onclick="showOwnProfile()" title="เปิดโปรไฟล์">
           <div class="avatar">${escapeHtml(avatarText(user.DisplayName))}</div>
           <span class="auth-user-profile-text">
             <strong>${escapeHtml(user.DisplayName)}</strong>
@@ -2337,22 +2339,99 @@
     function renderNav() {
       const side = document.getElementById('sideNav');
       const mobile = document.getElementById('mobileNav');
-      const navPages = mainNavPages();
-      const primaryPages = navPages.filter(([id]) => id !== 'profile');
-      const mobilePages = primaryPages.slice(0, 5);
-      side.innerHTML = primaryPages.map(([id, label, icon]) => `<button class="nav-btn" data-page="${id}" title="${label}">${icons[icon]}<span>${label}</span></button>`).join('');
-      mobile.innerHTML = mobilePages.map(([id, label, icon]) => `<button data-page="${id}" title="${label}">${icons[icon]}<span>${shortLabel(label)}</span></button>`).join('');
-      document.querySelectorAll('[data-page]').forEach((btn) => btn.addEventListener('click', () => showPage(btn.dataset.page)));
+      const groups = [
+        ['ภาพรวม', ['home', 'record', 'impact']],
+        ['เรียนรู้และกิจกรรม', ['guide', 'game', 'leaderboard']],
+        ['ชุมชน', ['community', 'chat', 'friends']],
+        ['บัญชีของฉัน', ['profile']]
+      ];
+      if (isStaffUser()) groups.push(['สำหรับครูและผู้ดูแล', ['admin', 'dashboard']]);
+      const navItem = (id) => {
+        const page = pages.find(p => p[0] === id);
+        return page ? `<button class="nav-btn" data-page="${id}" title="${escapeAttr(workspaceLabel(id))}">${icons[page[2]]}<span>${escapeHtml(workspaceLabel(id))}</span></button>` : '';
+      };
+      side.innerHTML = groups.map(([label, ids]) => `<div class="nav-group"><p>${label}</p>${ids.map(navItem).join('')}</div>`).join('');
+      mobile.innerHTML = ['home','record','game','chat'].map(id => {
+        const p = pages.find(item => item[0] === id);
+        return `<button data-page="${id}" title="${escapeAttr(workspaceLabel(id))}">${icons[p[2]]}<span>${escapeHtml(workspaceMobileLabel(id))}</span></button>`;
+      }).join('') + `<button type="button" onclick="showWorkspaceMenu()" aria-label="เมนูทั้งหมด"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 6h14M5 12h14M5 18h14"/></svg><span>เมนู</span></button>`;
+      document.querySelectorAll('[data-page]').forEach((btn) => btn.addEventListener('click', () => btn.dataset.page === 'profile' ? showOwnProfile() : showPage(btn.dataset.page)));
+    }
+
+    const workspacePages = {
+      home: ['หน้าหลัก', 'เริ่มต้นภารกิจรักษ์โลกของคุณได้จากที่นี่'],
+      record: ['บันทึกขยะ', 'บันทึกกิจกรรมที่บ้านและหลักฐานเพื่อส่งให้ครูตรวจสอบ'],
+      impact: ['ผลลัพธ์สิ่งแวดล้อม', 'ดูว่ากิจกรรมของเราช่วยลดผลกระทบต่อโลกได้อย่างไร'],
+      guide: ['คู่มือแยกขยะ', 'ค้นหาวิธีคัดแยกและจัดการขยะอย่างถูกต้อง'],
+      game: ['Trash Hero Academy', 'เรียนรู้ผ่านเกม ทำภารกิจ และสะสมเหรียญรางวัล'],
+      leaderboard: ['อันดับ', 'ดูอันดับผลลัพธ์การลดคาร์บอนจากข้อมูลที่คุณมีสิทธิ์ดู'],
+      community: ['ชุมชน', 'แบ่งปันไอเดียและติดตามเรื่องราวจากเพื่อน ๆ'],
+      chat: ['แชท', 'พูดคุย แลกเปลี่ยนไอเดีย และขอคำแนะนำ'],
+      friends: ['เพื่อน', 'ค้นหาเพื่อนร่วมภารกิจและดูความก้าวหน้า'],
+      profile: ['โปรไฟล์', 'ติดตามกิจกรรม EXP และความสำเร็จของคุณ'],
+      admin: ['จัดการระบบ', 'ตรวจสอบข้อมูล อนุมัติสมาชิก และดูแลชุมชน'],
+      dashboard: ['Dashboard', 'สรุปข้อมูลรายเดือนและความก้าวหน้าของโครงการ'],
+      compare: ['เปรียบเทียบผลลัพธ์', 'เปรียบเทียบข้อมูลระหว่างช่วงเวลา'],
+      formula: ['วิธีคำนวณคาร์บอน', 'ทำความเข้าใจสูตรและตัวคูณการลดคาร์บอน'],
+      missions: ['ภารกิจประจำเดือน', 'ดูสิ่งที่สามารถทำได้ในแต่ละเดือน'],
+      reminders: ['แจ้งเตือนกิจกรรม', 'ตรวจสอบรายการที่ควรดำเนินการต่อ'],
+      studentRoles: ['บทบาทนักเรียน', 'เรียนรู้หน้าที่ในการเป็นส่วนหนึ่งของโครงการ'],
+      starterKit: ['Starter Kit', 'เครื่องมือเริ่มต้นสำหรับกิจกรรม Zero Waste'],
+      certificate: ['เกียรติบัตร', 'ตรวจสอบและจัดทำเกียรติบัตร']
+    };
+
+    function workspaceLabel(id) { return workspacePages[id]?.[0] || 'Green Passport'; }
+    function workspaceMobileLabel(id) { return ({home:'หน้าหลัก',record:'บันทึก',game:'เกม',chat:'แชท'})[id] || workspaceLabel(id); }
+
+    let workspaceToastTimer;
+    function workspaceToast(message) {
+      let toast = document.getElementById('workspaceToast');
+      if (!toast) { toast = document.createElement('div'); toast.id = 'workspaceToast'; toast.className = 'workspace-toast'; toast.setAttribute('role','status'); document.body.append(toast); }
+      toast.textContent = message; toast.hidden = false;
+      clearTimeout(workspaceToastTimer);
+      workspaceToastTimer = setTimeout(() => { toast.hidden = true; }, 2800);
+    }
+
+    async function refreshWorkspaceData() {
+      if (state.workspaceRefreshing) return;
+      if (state.active === 'community' && (document.querySelector('#communityPostForm [name="PostTitle"]')?.value || document.querySelector('#communityPostForm [name="PostContent"]')?.value)) {
+        if (!await customConfirm('อัปเดตข้อมูลแล้วร่างโพสต์ที่ยังไม่ได้ส่งจะหาย ต้องการดำเนินการต่อหรือไม่?')) return;
+      }
+      const page = state.active;
+      state.workspaceRefreshing = true; workspaceToast('กำลังอัปเดตข้อมูล...');
+      try { await reloadData(true, page); workspaceToast('อัปเดตข้อมูลเรียบร้อย'); }
+      catch (error) { alert('อัปเดตข้อมูลไม่สำเร็จ กรุณาลองอีกครั้ง'); }
+      finally { state.workspaceRefreshing = false; }
+    }
+
+    function showWorkspaceMenu() {
+      let menu = document.getElementById('workspaceMenu');
+      if (!menu) {
+        menu = document.createElement('dialog'); menu.id = 'workspaceMenu'; menu.className = 'workspace-menu-dialog';
+        menu.setAttribute('aria-label','เมนูทั้งหมด'); document.body.append(menu);
+      }
+      const groups = [['กิจกรรมและข้อมูล',['home','record','guide','game','leaderboard','impact']],['ชุมชนและบัญชี',['community','chat','friends','profile']]];
+      if (isStaffUser()) groups.push(['สำหรับครูและผู้ดูแล',['admin','dashboard','compare','formula','missions','reminders','studentRoles','starterKit','certificate']]);
+      menu.innerHTML = `<header><div><small>GREEN PASSPORT</small><h2>เมนูทั้งหมด</h2></div><button type="button" onclick="document.getElementById('workspaceMenu').close()" aria-label="ปิดเมนู">×</button></header>` + groups.map(([name, ids]) => `<section><h3>${name}</h3><div class="workspace-menu-grid">${ids.map(id => `<button type="button" onclick="document.getElementById('workspaceMenu').close();${id === 'profile' ? 'showOwnProfile()' : `showPage('${id}')`}">${icons[pages.find(p=>p[0]===id)?.[2]] || ''}<span>${escapeHtml(workspaceLabel(id))}</span></button>`).join('')}</div></section>`).join('');
+      menu.insertAdjacentHTML('beforeend', '<div class="workspace-menu-footer"><button class="workspace-link" type="button" onclick="document.getElementById(\'workspaceMenu\').close();logout()">ออกจากระบบ</button></div>');
+      if (!menu.open) menu.showModal();
     }
 
     function shortLabel(label) {
       return label.replace('ข้อมูลขยะ', '').replace('Trash Hero Academy', 'เกม').replace('Leaderboard', 'อันดับ');
     }
 
-    function showPage(page) {
+    async function showPage(page) {
       if (!isAuthenticated()) {
         renderAuth();
         return;
+      }
+      if (!pages.some(item => item[0] === page)) return;
+      if (page === 'admin' && !isStaffUser()) { alert('หน้านี้สำหรับครูและผู้ดูแลระบบเท่านั้น'); return; }
+      if (state.active === 'record' && page === 'record' && state.recordDirty) return;
+      if (state.active === 'record' && page !== 'record' && state.recordDirty) {
+        if (!await customConfirm('ยังไม่ได้บันทึกข้อมูล ต้องการออกจากหน้านี้หรือไม่?')) return;
+        state.recordDirty = false;
       }
       state.active = page;
       if (typeof gpStopChat === 'function' && page !== 'chat') gpStopChat();
@@ -2360,7 +2439,7 @@
         ensureChatRoom();
         subscribeToFirebaseChat(state.chatRoom);
       }
-      if (['leaderboard', 'community', 'admin', 'dashboard'].includes(page) && typeof gpClient !== 'undefined' && gpClient) reloadData(true).catch(console.warn);
+      // Explicit refresh controls keep newly opened forms from being cleared by a delayed data fetch.
       document.body.classList.toggle('chat-active', page === 'chat');
       renderAll();
       window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -2374,8 +2453,11 @@
       const current = pages.find(([id]) => id === state.active);
       document.body.classList.remove('auth-locked');
       document.body.classList.toggle('chat-active', state.active === 'chat');
-      document.getElementById('pageTitle').textContent = current ? current[1] : 'Green Passport';
+      document.getElementById('pageTitle').textContent = workspaceLabel(state.active);
+      document.getElementById('pageSubtitle').textContent = workspacePages[state.active]?.[1] || '';
       document.getElementById('globalCarbon').textContent = format(state.data.dashboard.totalCO2e || 0);
+      const carbonLabel = document.querySelector('.carbon-pill > div');
+      if (carbonLabel) carbonLabel.textContent = isStaffUser() ? 'คาร์บอนในระบบ' : 'คาร์บอนของคุณ';
       renderAuthUserChip();
       document.querySelectorAll('.section').forEach((s) => s.classList.toggle('active', s.id === state.active));
       document.querySelectorAll('[data-page]').forEach((b) => b.classList.toggle('active', b.dataset.page === state.active));
@@ -2428,31 +2510,39 @@
 
 // ---- src/js/pages/home.js ----
     function renderHome() {
+      const user = state.currentUser || {};
+      const records = (state.data.wasteRecords || []).filter(r => String(r.UserID) === String(user.UserID));
+      const co2e = records.reduce((total, r) => total + Number(r.TotalCO2e || 0), 0);
+      const exp = (state.data.expLogs || []).filter(r => String(r.UserID) === String(user.UserID)).reduce((total, r) => total + Number(r.EXPAmount || 0), 0);
+      const month = new Date().toISOString().slice(0, 7);
+      const currentRecord = records.find(r => r.ReportMonth === month);
+      const name = escapeHtml(user.DisplayName || 'Green Buddy');
+      const nextAction = currentRecord ? 'ทำภารกิจต่อ' : 'เริ่มบันทึกขยะ';
+      const nextPage = currentRecord ? 'game' : 'record';
       document.getElementById('home').innerHTML = `
-        <div class="hero">
-          <div>
-            <h2>Green Passport</h2>
-            <p>Green Passport คือระบบนวัตกรรมดิจิทัลที่เชื่อมโยงการเรียนรู้จากโรงเรียนสู่บ้าน ช่วยให้นักเรียนและครัวเรือนบันทึกข้อมูลขยะ คำนวณการลดคาร์บอน ตรวจสอบหลักฐาน เล่นเกมเพื่อเรียนรู้ และติดตามผลลัพธ์ผ่าน Dashboard โดยมีเป้าหมายเพื่อสร้างครัวเรือนต้นแบบ Zero Waste และขยายผลสู่ชุมชนอย่างยั่งยืน</p>
-            <div class="btn-row">
-              <button class="btn" onclick="showPage('record')">${icons.edit}เริ่มบันทึกข้อมูล</button>
-              <button class="btn secondary" onclick="showPage('impact')">${icons.impact}ดูผลกระทบของเรา</button>
+        <div class="workspace-welcome">
+          <div class="workspace-welcome-copy">
+            <div class="workspace-eyebrow">GREEN PASSPORT · ST. THERESA</div>
+            <h2>สวัสดี, ${name}</h2>
+            <p>${currentRecord ? 'คุณบันทึกข้อมูลเดือนนี้แล้ว ลองเรียนรู้และทำกิจกรรมอื่น ๆ ต่อได้เลย' : 'เริ่มต้นด้วยการบันทึกขยะที่บ้าน แล้วสะสมความก้าวหน้าไปด้วยกัน'}</p>
+            <div class="workspace-welcome-actions">
+              <button class="btn" onclick="showPage('${nextPage}')">${icons[nextPage === 'record' ? 'edit' : 'game']} ${nextAction}</button>
+              <button class="btn ghost" onclick="showPage('guide')">ดูคู่มือแยกขยะ</button>
             </div>
-            <div class="mode-strip">
-              ${userModes.map(([key, title, emoji, text]) => `<button class="mode-card ${key === state.userMode ? 'active' : ''} ${key === 'parent' ? 'parent' : key === 'teacher' ? 'teacher' : key === 'leader' ? 'leader' : ''}" type="button" onclick="setUserMode('${key}')"><h3>${emoji} ${title}</h3><p>${text}</p></button>`).join('')}
-            </div>
-            <div class="notice">โหมดปัจจุบัน: ${currentUserModeLabel()} | เลือกบทบาทเพื่อดูเมนูแนะนำที่เหมาะกับผู้ใช้งานแต่ละกลุ่ม</div>
           </div>
-          <div class="hero-visual">
-            <span><img src="./assets/images/school-logo.webp" alt="Green Passport St. Theresa Zero Waste"></span>
-            <div class="school-emblem-badge"><img src="./assets/images/inline-image-2.webp" alt="ตราโรงเรียนเซนต์เทเรซา"></div>
-          </div>
+          <div class="workspace-welcome-art">${authArt()}</div>
         </div>
-        <div class="quick-menu">
-          ${mainNavPages().filter(([id]) => !['home','admin'].includes(id)).map(([id, label, icon]) => `
-            <button class="menu-card" onclick="showPage('${id}')">
-              ${icons[icon]}<strong>${label}</strong><small>${menuHelp(id)}</small>
-            </button>`).join('')}
-        </div>`;
+        <div class="workspace-section-title"><div><h3>ความก้าวหน้าของคุณ</h3><p>ผลลัพธ์จากกิจกรรมของบัญชีนี้</p></div><button class="workspace-link" onclick="showOwnProfile()">ดูโปรไฟล์</button></div>
+        <div class="workspace-stats">
+          <div class="workspace-stat"><span class="workspace-stat-icon">${icons.impact}</span><div><span>คาร์บอนที่ลดได้</span><strong>${format(co2e)} <small>kgCO₂e</small></strong></div></div>
+          <div class="workspace-stat"><span class="workspace-stat-icon">${icons.edit}</span><div><span>รายการบันทึก</span><strong>${records.length} <small>รายการ</small></strong></div></div>
+          <div class="workspace-stat"><span class="workspace-stat-icon">${icons.award}</span><div><span>ประสบการณ์สะสม</span><strong>${exp} <small>EXP</small></strong></div></div>
+        </div>
+        <div class="workspace-section-title"><div><h3>อยากทำอะไรต่อ?</h3><p>เลือกกิจกรรมที่สนใจ</p></div><button class="workspace-link" onclick="showWorkspaceMenu()">ดูเมนูทั้งหมด</button></div>
+        <div class="workspace-action-grid">
+          ${[['record','edit','บันทึกขยะ','ส่งข้อมูลและหลักฐานกิจกรรมที่บ้าน'],['game','game','เล่นเกม','เรียนรู้และสะสม Badge'],['community','community','ชุมชน','แชร์ไอเดียและผลงานกับเพื่อน'],['chat','chat','พูดคุย','สอบถามและแลกเปลี่ยนในห้องแชท']].map(([id, icon, title, desc]) => `<button class="workspace-action-card" onclick="showPage('${id}')"><span class="workspace-action-icon">${icons[icon]}</span><div><strong>${title}</strong><small>${desc}</small></div></button>`).join('')}
+        </div>
+        ${isStaffUser() ? `<div class="workspace-admin-callout"><div><strong>จัดการโครงการ</strong><p>ตรวจสอบรายการที่ส่ง อนุมัติสมาชิก และดูแลชุมชน</p></div><button class="btn ghost" onclick="showPage('admin')">เปิดแผงจัดการ</button></div>` : ''}`;
     }
 
     function menuHelp(id) {
@@ -2491,67 +2581,86 @@
     function renderRecord() {
       const month = new Date().toISOString().slice(0, 7);
       const defaults = authRecordDefaults();
+      state.recordDirty = false;
+      const activityGroups = [
+        ['วัสดุรีไซเคิล', activityFields.slice(0,7)],
+        ['จัดการขยะอินทรีย์', activityFields.slice(7,10)],
+        ['ลดการใช้และใช้ซ้ำ', activityFields.slice(10,17)],
+        ['กำจัดขยะอันตราย', activityFields.slice(17)]
+      ];
       document.getElementById('record').innerHTML = `
-        <div class="grid record-layout">
-          <form class="panel" id="recordForm">
-            <h3>ข้อมูลนักเรียนและครัวเรือน</h3>
-            <div class="field-grid">
-              ${input('StudentName', 'ชื่อ-สกุลนักเรียน', 'text', true, defaults.StudentName)}
-              ${input('ClassName', 'ระดับชั้น/ห้อง', 'text', true, defaults.ClassName)}
-              ${input('StudentID', 'เลขที่หรือรหัสนักเรียน', 'text', true, defaults.StudentID)}
-              ${input('HouseholdName', 'ชื่อครัวเรือน', 'text', true, defaults.HouseholdName)}
-              ${input('ReportMonth', 'เดือนที่รายงานผล', 'month', true, month)}
+        <div class="workspace-form-layout">
+          <form class="panel workspace-form" id="recordForm" novalidate data-step="1">
+            <div class="workspace-form-header"><div><h3>สร้างรายการบันทึกใหม่</h3><p>กรอกข้อมูลตามลำดับ ใช้เวลาประมาณ 3–5 นาที</p></div></div>
+            <ol class="workspace-steps" aria-label="ขั้นตอนบันทึกขยะ">${['ข้อมูลทั่วไป','ข้อมูลขยะ','หลักฐาน'].map((label,i)=>`<li data-record-indicator="${i+1}"><span>${i+1}</span><strong>${label}</strong></li>`).join('')}</ol>
+            <div class="workspace-step" data-record-step="1">
+              <h4>ข้อมูลการส่ง</h4><p class="workspace-hint">ระบบนำข้อมูลผู้ส่งมาจากบัญชีของคุณอัตโนมัติ</p>
+              <div class="workspace-identity"><div class="avatar">${escapeHtml(avatarText(defaults.StudentName || 'GP'))}</div><div><strong>${escapeHtml(defaults.StudentName || 'สมาชิก Green Passport')}</strong><small>${escapeHtml([defaults.ClassName, defaults.HouseholdName].filter(Boolean).join(' · ') || 'บัญชีของคุณ')}</small></div></div>
+              ${['StudentName','ClassName','StudentID','HouseholdName'].map(k=>`<input type="hidden" name="${k}" value="${escapeAttr(defaults[k] || '')}">`).join('')}
+              ${input('ReportMonth', 'เดือนที่บันทึก', 'month', true, month)}
+              <div class="workspace-info">เตรียมปริมาณขยะในหน่วยกิโลกรัมและรูปถ่ายหลักฐานไว้ก่อนเริ่มบันทึก</div>
             </div>
-            <div class="form-group">
-              <h3>ปริมาณขยะ 4 ประเภท</h3>
-              <div class="field-grid">
-                ${input('GeneralWasteKg', 'ขยะทั่วไป (kg)', 'number')}
-                ${input('RecycleWasteKg', 'ขยะรีไซเคิล (kg)', 'number')}
-                ${input('OrganicWasteKg', 'ขยะอินทรีย์/เศษอาหาร (kg)', 'number')}
-                ${input('HazardousWasteAmount', 'ขยะอันตราย (ชิ้นหรือ kg)', 'number')}
+            <div class="workspace-step" data-record-step="2" hidden>
+              <h4>ปริมาณขยะที่เกิดขึ้น</h4><p class="workspace-hint">กรอกเฉพาะข้อมูลที่มี หากไม่มีให้เว้นว่างหรือใส่ 0</p>
+              <div class="workspace-waste-grid">
+                ${[['GeneralWasteKg','ขยะทั่วไป','general'],['RecycleWasteKg','ขยะรีไซเคิล','recycle'],['OrganicWasteKg','ขยะอินทรีย์','organic'],['HazardousWasteAmount','ขยะอันตราย','hazard']].map(([key,label,tone])=>`<div class="workspace-waste-field ${tone}"><span class="workspace-waste-dot"></span>${input(key,label+' (กก.)','number')}</div>`).join('')}
               </div>
+              <h4>กิจกรรมลดคาร์บอน</h4><p class="workspace-hint">เปิดเฉพาะหมวดที่คุณทำ ข้อมูลในส่วนนี้ใช้คำนวณผลลัพธ์การลดคาร์บอน</p>
+              ${activityGroups.map(([label,fields],i)=>`<details class="workspace-accordion"><summary><span>${label}</span><span class="workspace-accordion-count">${fields.length} รายการ</span></summary><div class="activity-grid">${fields.map(([field,name,unit])=>input(field,`${name} (${unit})`,'number')).join('')}</div></details>`).join('')}
             </div>
-            <div class="form-group">
-              <h3>กิจกรรมจัดการขยะเพิ่มเติม</h3>
-              <div class="activity-grid">
-                ${activityFields.map(([field, label, unit]) => input(field, `${label} (${unit})`, 'number')).join('')}
-              </div>
+            <div class="workspace-step" data-record-step="3" hidden>
+              <h4>แนบหลักฐานกิจกรรม</h4><p class="workspace-hint">แนบรูปภาพ 1–5 รูป (.jpg, .png หรือ .webp) ขนาดไม่เกิน 5 MB ต่อรูป</p>
+              <label class="workspace-upload" for="EvidenceFiles">${icons.edit}<strong>เลือกรูปภาพหลักฐาน</strong><span>คลิกที่นี่เพื่อเลือกรูปจากอุปกรณ์</span><input id="EvidenceFiles" name="EvidenceFiles" type="file" accept="image/jpeg,image/png,image/webp" multiple required></label>
+              <div id="recordFileList" class="workspace-file-list" aria-live="polite"></div>
+              ${input('VideoLink', 'ลิงก์วิดีโอ (ถ้ามี)', 'url')}
+              <label class="workspace-consent"><input type="checkbox" name="Consent" required><span>ยืนยันว่าข้อมูลและภาพหลักฐานเป็นข้อมูลที่สามารถส่งให้โรงเรียนตรวจสอบได้</span></label>
+              <div class="workspace-info">หลังส่งรายการ ครูจะตรวจสอบข้อมูลก่อนเปลี่ยนสถานะเป็นผ่านการตรวจสอบ</div>
             </div>
-            <div class="form-group">
-              <h3>หลักฐานและความยินยอม</h3>
-              <div class="field-grid">
-                <label>อัปโหลดรูปภาพหลักฐาน<input id="EvidenceFiles" name="EvidenceFiles" type="file" accept="image/*" multiple></label>
-                ${input('VideoLink', 'ลิงก์วิดีโอเพิ่มเติม', 'url')}
-              </div>
-              <div class="privacy-box" style="margin-top:12px">
-                <label><span><input type="checkbox" name="Consent" required style="width:auto;min-height:auto"> ข้าพเจ้ายินยอมให้โรงเรียนใช้ข้อมูลและภาพหลักฐานที่ส่งผ่านระบบ Green Passport เพื่อการติดตามผลโครงการด้านสิ่งแวดล้อม การจัดทำรายงาน และการนำเสนอผลงานทางการศึกษา โดยโรงเรียนจะใช้ข้อมูลอย่างเหมาะสมและไม่เปิดเผยข้อมูลส่วนบุคคลต่อสาธารณะโดยไม่จำเป็น</span></label>
-              </div>
-            </div>
-            <div class="btn-row" style="margin-top:16px">
-              <button class="btn" type="submit">${icons.edit}ส่งข้อมูล</button>
-              <button class="btn ghost" type="reset">ล้างข้อมูล</button>
-            </div>
+            <div id="recordFormError" class="workspace-form-error" role="alert" hidden></div>
+            <div class="workspace-form-actions"><button type="button" class="btn ghost" id="recordBack">ย้อนกลับ</button><button type="submit" class="btn" id="recordNext">ขั้นตอนถัดไป</button></div>
           </form>
-          <div class="result-box">
-            <h3>ผลคำนวณทันที</h3>
-            <div class="number"><span id="liveCo2e">0.00</span></div>
-            <p>kgCO₂e จากกิจกรรมที่บันทึก</p>
-            <div style="margin-top:12px">${greenBuddy('<span id="liveAdvice">กรอกกิจกรรมเพื่อดูคำแนะนำอัตโนมัติ</span>', true)}</div>
-            <div class="panel" style="margin-top:14px">
-              <h3>สถานะ Google Sheets</h3>
-              <p>${sheetApiConfigured() ? 'เชื่อมต่อ Google Sheets Web App พร้อมบันทึกลงชีต' : 'ยังไม่ได้ตั้งค่า endpoint สำหรับเขียนข้อมูล: เปิดด้วย ?api=WEB_APP_URL หลัง deploy Code.gs'}</p>
-            </div>
-          </div>
+          <aside class="workspace-summary panel">
+            <span class="workspace-eyebrow">ผลลัพธ์ของกิจกรรม</span><h3>คาร์บอนที่ลดได้</h3>
+            <div class="workspace-carbon-value"><span id="liveCo2e">0.00</span><small>kgCO₂e</small></div>
+            <p>คำนวณจากข้อมูลกิจกรรมที่คุณกรอก</p>
+            <div class="workspace-summary-tip"><strong>คำแนะนำ</strong><p id="liveAdvice">เริ่มกรอกข้อมูลเพื่อดูคำแนะนำ</p></div>
+            <span class="workspace-summary-note">ระบบคำนวณผลลัพธ์โดยอัตโนมัติ</span>
+          </aside>
         </div>`;
       const form = document.getElementById('recordForm');
-      form.addEventListener('input', updateLiveCarbon);
+      form.addEventListener('input', () => { state.recordDirty = true; updateLiveCarbon(); });
       form.addEventListener('submit', submitRecord);
+      document.getElementById('recordBack').addEventListener('click', () => setRecordStep(Number(form.dataset.step) - 1));
+      document.getElementById('EvidenceFiles').addEventListener('change', event => {
+        const list = document.getElementById('recordFileList');
+        list.innerHTML = [...event.target.files].map(file => `<div><span>${escapeHtml(file.name)}</span><small>${(file.size/1024/1024).toFixed(2)} MB</small></div>`).join('');
+        state.recordDirty = true;
+      });
+      setRecordStep(1, false);
       updateLiveCarbon();
     }
 
     function input(name, label, type, required, value = '') {
-      const step = type === 'number' ? ' step="0.01" min="0"' : '';
-      return `<label>${label}<input name="${name}" type="${type}" value="${value}" ${required ? 'required' : ''}${step}></label>`;
+      const step = type === 'number' ? ' step="0.01" min="0" placeholder="0"' : '';
+      return `<label>${escapeHtml(label)}<input name="${escapeAttr(name)}" type="${type}" value="${escapeAttr(String(value ?? ''))}" ${required ? 'required' : ''}${step}></label>`;
+    }
+
+    function setRecordStep(step, scroll = true) {
+      const form = document.getElementById('recordForm');
+      if (!form) return;
+      step = Math.max(1, Math.min(3, step));
+      form.dataset.step = String(step);
+      form.querySelectorAll('[data-record-step]').forEach(el => el.hidden = Number(el.dataset.recordStep) !== step);
+      form.querySelectorAll('[data-record-indicator]').forEach(el => {
+        const n = Number(el.dataset.recordIndicator);
+        el.classList.toggle('current', n === step); el.classList.toggle('complete', n < step);
+        if (n === step) el.setAttribute('aria-current','step'); else el.removeAttribute('aria-current');
+      });
+      document.getElementById('recordBack').hidden = step === 1;
+      document.getElementById('recordNext').textContent = step === 3 ? 'ส่งรายการบันทึก' : 'ขั้นตอนถัดไป';
+      const error = document.getElementById('recordFormError');
+      error.hidden = true;
+      if (scroll) form.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }
 
     function updateLiveCarbon() {
@@ -2566,33 +2675,34 @@
     async function submitRecord(event) {
       event.preventDefault();
       const form = event.currentTarget;
-      const data = Object.fromEntries(new FormData(form).entries());
-      const identity = currentUserIdentity();
-      data.UserID = identity.UserID;
-      data.TotalCO2e = calculateCo2e(data);
-      data.EvidenceFiles = await filesToPayload(document.getElementById('EvidenceFiles').files);
-      if (!data.EvidenceFiles.length) {
-        alert('กรุณาแนบรูปภาพหลักฐานอย่างน้อย 1 รูป');
-        return;
+      const step = Number(form.dataset.step || 1);
+      const panel = form.querySelector('[data-record-step="' + step + '"]');
+      if (![...panel.querySelectorAll('input,select,textarea')].every(field => field.reportValidity())) return;
+      if (step < 3) { setRecordStep(step + 1); return; }
+      const errorBox = document.getElementById('recordFormError');
+      const files = [...document.getElementById('EvidenceFiles').files];
+      const showError = text => { errorBox.textContent = text; errorBox.hidden = false; errorBox.scrollIntoView({block:'nearest'}); };
+      if (files.length < 1 || files.length > 5 || files.some(file => file.size > 5*1024*1024 || !['image/jpeg','image/png','image/webp'].includes(file.type))) {
+        showError('กรุณาเลือกรูป JPG, PNG หรือ WebP 1–5 รูป ขนาดไม่เกิน 5 MB ต่อรูป'); return;
       }
+      const button = document.getElementById('recordNext');
+      if (button.disabled) return;
+      button.disabled = true; button.textContent = 'กำลังส่งรายการ...'; errorBox.hidden = true;
       try {
+        const data = Object.fromEntries(new FormData(form).entries());
+        data.UserID = currentUserIdentity().UserID;
+        data.TotalCO2e = calculateCo2e(data);
+        data.EvidenceFiles = await filesToPayload(files);
         const result = await sheetApi('appendWasteRecord', { record: data });
         if (result.record) state.data.wasteRecords.push(normalizeRow(result.record));
-        refreshLocalDashboard();
-        applyCurrentUserToState();
-        saveToLocalStorage();
-        alert(`บันทึกลง Google Sheets สำเร็จ\nลดคาร์บอน ${format(result.totalCO2e || data.TotalCO2e)} kgCO₂e\n${result.message || advice(data, data.TotalCO2e)}`);
-        form.reset();
-        renderAll();
+        refreshLocalDashboard(); applyCurrentUserToState(); saveToLocalStorage();
+        state.recordDirty = false;
+        document.getElementById('record').innerHTML = `<div class="panel workspace-success"><span class="workspace-success-icon">${authIcons.check}</span><h3>ส่งรายการเรียบร้อยแล้ว!</h3><p>ลดคาร์บอนได้ <strong>${format(result.totalCO2e ?? data.TotalCO2e)} kgCO₂e</strong></p><p>รายการของคุณกำลังรอครูตรวจสอบ</p><div class="btn-row"><button class="btn" onclick="renderRecord()">สร้างรายการใหม่</button><button class="btn ghost" onclick="showPage('home')">กลับหน้าหลัก</button></div></div>`;
       } catch (error) {
-        state.data.wasteRecords.push(normalizeRow(data));
-        refreshLocalDashboard();
-        applyCurrentUserToState();
-        saveToLocalStorage();
-        queuePendingWrite('appendWasteRecord', { record: data });
-        alert('ยังบันทึกลง Google Sheets ไม่สำเร็จ ระบบเก็บคำขอนี้ไว้เพื่อส่งซ้ำเมื่อ endpoint พร้อม: ' + error.message);
-        form.reset();
-        renderAll();
+        console.warn('Record submission failed', error);
+        showError('ยังส่งข้อมูลไม่สำเร็จ ข้อมูลที่กรอกยังอยู่ กรุณาตรวจสอบการเชื่อมต่อแล้วลองอีกครั้ง');
+      } finally {
+        button.disabled = false; button.textContent = 'ส่งรายการบันทึก';
       }
     }
 
@@ -2890,27 +3000,17 @@ function createInitialGameState() {
     }
 
     function renderGameStart() {
+      const total = gameTotals();
+      const complete = state.game.stageResults.filter(stage => stage.completed).length;
       return `
-        <div class="game-hero">
-          <div>
-            <h3>🌱 Trash Hero Academy</h3>
-            <p>เรียนรู้ แยกขยะ ลดคาร์บอน สู่การเป็นฮีโร่พิทักษ์โลกจากโรงเรียนสู่บ้าน 🏡</p>
-            <p class="notice">สวัสดีฮีโร่ตัวน้อย! วันนี้เรามาช่วยโลกด้วยการแยกขยะกันเถอะ 🌱</p>
-            <div class="btn-row" style="margin-top:16px">
-              <button class="btn" onclick="goGameScreen('profile'); playGameSound('button')">🌱 เริ่มภารกิจ</button>
-              <button class="btn ghost" onclick="goGameScreen('map'); playGameSound('button')">🗺️ ดูแผนที่เกม</button>
-            </div>
-            ${soundToggleButton()}
-          </div>
-          <div class="hero-badge-art">${greenBuddy('ฉันคือน้องใบไม้ Green Buddy จะช่วยแนะนำทุกด่านให้สนุกและแยกขยะได้ถูกถัง 💚')}</div>
+        <div class="workspace-welcome workspace-game-welcome">
+          <div class="workspace-welcome-copy"><span class="workspace-eyebrow">9 MISSIONS · LEARN BY PLAYING</span><h2>Trash Hero Academy</h2><p>ฝึกแยกขยะผ่านภารกิจสั้น ๆ เก็บดาว รับ Badge และปลดล็อกด่านต่อไป</p><div class="workspace-welcome-actions"><button class="btn" onclick="goGameScreen('map'); playGameSound('button')">${icons.game} ${complete ? 'เล่นต่อ' : 'เริ่มเล่นเกม'}</button><button class="btn ghost" onclick="goGameScreen('profile')">ข้อมูลผู้เล่น</button></div></div>
+          <div class="workspace-welcome-art">${authArt()}</div>
         </div>
-        ${renderWasteIcons()}
-        ${renderKnowledgeCards()}
-        <div class="grid three" style="margin-top:16px">
-          <div class="card"><h3>🗺️ 9 ด่านภารกิจ</h3><p>แยกขยะ 3Rs คาร์บอน ภารกิจที่บ้าน และบททดสอบสุดท้าย</p></div>
-          <div class="card"><h3>⭐ คะแนน ดาว Badge</h3><p>ผ่านด่านเพื่อสะสมดาวและปลดล็อกตำแหน่งฮีโร่</p></div>
-          <div class="card"><h3>🏡 School to Home</h3><p>นำความรู้ไปใช้จริงที่บ้านและบันทึกผลใน Green Passport</p></div>
-        </div>`;
+        <div class="workspace-section-title"><div><h3>ความก้าวหน้าในเกม</h3><p>เล่นตามลำดับเพื่อปลดล็อกภารกิจ</p></div><button class="workspace-link" onclick="goGameScreen('leaderboard')">อันดับเกม</button></div>
+        <div class="workspace-stats"><div class="workspace-stat"><span class="workspace-stat-icon">${icons.mission}</span><div><span>ด่านที่ผ่าน</span><strong>${complete}<small> / 9</small></strong></div></div><div class="workspace-stat"><span class="workspace-stat-icon">${icons.rank}</span><div><span>คะแนน</span><strong>${total.score}</strong></div></div><div class="workspace-stat"><span class="workspace-stat-icon">${icons.award}</span><div><span>ดาวสะสม</span><strong>${total.stars}</strong></div></div></div>
+        <div class="panel" style="margin-top:20px"><h3>วิธีเล่น</h3><div class="workspace-howto"><div><span>1</span><strong>เลือกภารกิจ</strong><p>เริ่มจากด่านแรกหรือเล่นต่อจากด่านที่ปลดล็อก</p></div><div><span>2</span><strong>ตอบคำถาม</strong><p>เลือกวิธีจัดการขยะให้ถูกต้อง</p></div><div><span>3</span><strong>รับรางวัล</strong><p>สะสมดาวและบันทึกคะแนนเมื่อเล่นเสร็จ</p></div></div>${soundToggleButton()}</div>
+        <details class="panel workspace-accordion" style="margin-top:16px"><summary>ความรู้ก่อนเล่น</summary>${renderWasteIcons()}${renderKnowledgeCards()}</details>`;
     }
 
     function renderGameProfile() {
@@ -3274,54 +3374,35 @@ function createInitialGameState() {
         score[`Stage${index + 1}Score`] = Number(result.score || 0);
         score[`Stage${index + 1}Stars`] = Number(result.stars || 0);
       });
+      if (state.game.saving) return;
+      state.game.saving = true;
       sheetApi('appendGameScore', { score }).then((result) => {
         if (result.score) state.data.gameScores.push(normalizeRow(result.score));
         if (result.gameScores) state.data.gameScores = result.gameScores.map(normalizeRow);
         state.game.saved = true;
         saveToLocalStorage();
         playGameSound('finish');
-        alert('บันทึกคะแนนเกมลง Google Sheets เรียบร้อย ✅\nยินดีด้วย! คุณได้รับ Badge ใหม่ 🏆');
+        alert('บันทึกคะแนนสำเร็จ! คุณสามารถเล่นด่านถัดไปหรือดูเกียรติบัตรได้');
         goGameScreen(allStagesComplete() ? 'certificate' : 'map');
       }).catch((error) => {
-        if (typeof normalizeRow === 'function') {
-          state.data.gameScores.push(normalizeRow(score));
-        } else {
-          state.data.gameScores.push(score);
-        }
-        queuePendingWrite('appendGameScore', { score });
-        state.game.saved = true;
-        saveToLocalStorage();
-        playGameSound('finish');
-        alert('ยังบันทึกคะแนนลง Google Sheets ไม่สำเร็จ ระบบเก็บคำขอไว้เพื่อส่งซ้ำเมื่อ endpoint พร้อม: ' + error.message);
-        goGameScreen(allStagesComplete() ? 'certificate' : 'map');
-      });
+        console.warn('Game score save failed', error);
+        alert('ยังบันทึกคะแนนไม่สำเร็จ ผลการเล่นยังอยู่ กรุณาลองบันทึกอีกครั้ง');
+      }).finally(() => { state.game.saving = false; });
     }
 
 
 // ---- src/js/pages/leaderboard.js ----
     function renderLeaderboard() {
-      const topCarbon = [...state.data.householdSummary].sort((a, b) => b.TotalCO2e - a.TotalCO2e);
-      
+      const topCarbon = [...(state.data.householdSummary || [])].sort((a,b)=>Number(b.TotalCO2e||0)-Number(a.TotalCO2e||0));
       document.getElementById('leaderboard').innerHTML = `
-        <div class="panel" style="max-width: 800px; margin: 0 auto;">
-          <h3 style="margin-bottom: 20px; display: flex; align-items: center; gap: 8px;">🌍 Leaderboard คาร์บอนสะสม</h3>
-          <p style="color: var(--text-muted); margin-bottom: 16px;">อันดับการลดการปล่อยก๊าซเรือนกระจก (คาร์บอนไดออกไซด์เทียบเท่า) สะสมของแต่ละครัวเรือน</p>
-          <div style="margin-top: 16px;">
-            ${topCarbon.length ? rankCards(topCarbon, 'carbon') : '<p style="text-align: center; color: var(--text-muted); padding: 20px 0;">ยังไม่มีข้อมูลคาร์บอนสะสม</p>'}
-          </div>
-        </div>`;
+        <div class="workspace-page-action"><div><h3>อันดับการลดคาร์บอน</h3><p>เรียงตามปริมาณคาร์บอนที่ลดได้จากข้อมูลที่คุณมีสิทธิ์ดู</p></div><button class="btn ghost" onclick="refreshWorkspaceData()">รีเฟรชอันดับ</button></div>
+        <div class="panel">${topCarbon.length ? `<div class="workspace-rank-list">${rankCards(topCarbon,'carbon')}</div>` : `<div class="workspace-empty"><span class="workspace-empty-icon">${icons.rank}</span><h3>ยังไม่มีอันดับ</h3><p>เมื่อมีการบันทึกกิจกรรม ข้อมูลผลลัพธ์จะปรากฏที่นี่</p><button class="btn" onclick="showPage('record')">บันทึกกิจกรรม</button></div>`}</div>
+        <div class="workspace-section-title"><div><h3>อันดับเกม</h3><p>แข่งขันผ่านภารกิจ Trash Hero Academy</p></div></div><button class="workspace-action-card" style="width:100%" onclick="state.game.screen='leaderboard';showPage('game')"><span class="workspace-action-icon">${icons.game}</span><div><strong>ดูอันดับคะแนนเกม</strong><small>คะแนนและดาวสะสมจากผู้เล่น</small></div></button>`;
     }
 
     function rankCards(rows, type) {
-      const medal = ['🏆', '🥈', '🥉'];
-      return rows.map((r, i) => `
-        <div class="card" style="margin-bottom: 10px;">
-          <div class="btn-row" style="justify-content: space-between; align-items: center;">
-            <strong>${medal[i] || '⭐'} อันดับ ${i + 1}: ${r.HouseholdName}</strong>
-            <span class="badge earned">${format(r.TotalCO2e)} kgCO₂e 🌍</span>
-          </div>
-          <p style="margin-top: 4px; font-size: 14px; color: var(--text-muted);">${r.ClassName || ''} ส่งข้อมูล ${r.TotalSubmissions} ครั้ง 🍃</p>
-        </div>`).join('');
+      if (!rows.length) return '<div class="workspace-empty"><p>ยังไม่มีข้อมูลสำหรับจัดอันดับ</p></div>';
+      return rows.map((r,i)=>`<div class="workspace-rank-row"><span class="workspace-rank-number rank-${i+1}">${i+1}</span><div class="workspace-rank-person"><strong>${escapeHtml(String(r.HouseholdName || r.DisplayName || 'สมาชิก Green Passport'))}</strong><small>${escapeHtml(String(r.ClassName || ''))} · ส่ง ${Number(r.TotalSubmissions || 0)} รายการ</small></div><div class="workspace-rank-score"><strong>${format(r.TotalCO2e || 0)}</strong><small>kgCO₂e</small></div></div>`).join('');
     }
 
 
@@ -3381,57 +3462,44 @@ function createInitialGameState() {
 
     function renderCommunity() {
       const posts = publishedPosts();
-      const pending = (state.data.communityPosts || []).filter((post) => String(post.ReviewStatus || '').includes('รอตรวจ')).length;
       const identity = currentUserIdentity();
+      const pending = (state.data.communityPosts || []).filter(post => post.UserID === identity.UserID && !statusIsPublished(post.ReviewStatus) && !statusIsHidden(post.ReviewStatus)).length;
       document.getElementById('community').innerHTML = `
-        <div class="grid two">
-          <div class="panel">
-            <h3>ชุมชน Green Passport</h3>
-            <p>พื้นที่แบ่งปันประสบการณ์ลดขยะในบ้าน ให้กำลังใจเพื่อน และเก็บตัวอย่างวิธีทำจริงจากนักเรียน โดยครูตรวจสอบก่อนเผยแพร่เสมอ</p>
-            ${renderCommunityRules()}
-            <form id="communityPostForm" style="margin-top:16px">
-              <div class="field-grid">
-                <label>ชื่อที่แสดงในชุมชน<input name="DisplayName" required maxlength="40" value="${escapeAttr(identity.DisplayName)}" readonly></label>
-                <label>ชั้น/ห้อง<input name="ClassName" maxlength="20" value="${escapeAttr(identity.ClassName)}" readonly></label>
-                <label>รหัสหรือชื่อย่อผู้ใช้<input name="UserID" maxlength="30" value="${escapeAttr(identity.UserID)}" readonly></label>
-                <label>หมวดหมู่<select name="Category">${communityCategories().map((item) => `<option>${item}</option>`).join('')}</select></label>
-              </div>
-              <label style="margin-top:12px">หัวข้อโพสต์<input name="PostTitle" required maxlength="90" placeholder="เล่าว่าบ้านหรือห้องเรียนทำอะไร"></label>
-              <label style="margin-top:12px">เรื่องเล่า<textarea name="PostContent" required rows="4" maxlength="1200" placeholder="เล่าปัญหา วิธีทำ และผลที่เกิดขึ้น"></textarea></label>
-              <div class="field-grid" style="margin-top:12px">
-                <label>วิธีที่ใช้<textarea name="MethodUsed" rows="3" maxlength="600"></textarea></label>
-                <label>ผลลัพธ์<textarea name="Result" rows="3" maxlength="600"></textarea></label>
-                <label>ปัญหาที่พบ<textarea name="Problem" rows="3" maxlength="600"></textarea></label>
-                <label>วิธีแก้/คำแนะนำ<textarea name="Solution" rows="3" maxlength="600"></textarea></label>
-              </div>
-              <label style="margin-top:12px">ฝากถึงเพื่อน<textarea name="AdviceToFriends" rows="2" maxlength="400"></textarea></label>
-              <div class="field-grid" style="margin-top:12px">
-                <label>ลิงก์รูปภาพหรือหลักฐาน<input name="ImageLinks" type="url" placeholder="https://..."></label>
-                <label>แท็ก<input name="Tags" placeholder="เช่น แยกขยะ, ปุ๋ยหมัก"></label>
-              </div>
-              <label style="margin-top:12px"><span><input name="CommunityRulesConsent" type="checkbox" required style="width:auto;min-height:auto"> ยอมรับกติกาชุมชนและยืนยันว่าไม่เปิดเผยข้อมูลส่วนตัว</span></label>
-              <div class="btn-row" style="margin-top:14px">
-                <button class="btn" type="submit">ส่งโพสต์ให้ครูตรวจ</button>
-                <button class="btn ghost" type="reset">ล้างข้อมูล</button>
-              </div>
-            </form>
+        <div class="workspace-page-action"><div><h3>พื้นที่แบ่งปันสีเขียว</h3><p>เรื่องราวจากเพื่อน ๆ ที่ผ่านการตรวจสอบแล้ว</p></div><div class="btn-row"><button class="btn ghost" onclick="refreshWorkspaceData()">รีเฟรช</button><button class="btn" onclick="openCommunityComposer()">สร้างโพสต์</button></div></div>
+        <div class="workspace-community-layout">
+          <div class="workspace-feed">
+            <details class="panel workspace-compose" id="workspaceComposer">
+              <summary><span>${icons.edit} เขียนเรื่องราวของคุณ</span><small>โพสต์จะรอครูตรวจสอบ</small></summary>
+              <form id="communityPostForm" class="workspace-compose-form">
+                <input type="hidden" name="DisplayName" value="${escapeAttr(identity.DisplayName)}"><input type="hidden" name="ClassName" value="${escapeAttr(identity.ClassName)}"><input type="hidden" name="UserID" value="${escapeAttr(identity.UserID)}">
+                <label>หมวดหมู่<select name="Category">${communityCategories().map(item=>`<option>${escapeHtml(item)}</option>`).join('')}</select></label>
+                <label>หัวข้อ<input name="PostTitle" required maxlength="90" placeholder="เช่น เปลี่ยนขวดพลาสติกเป็นกระถางต้นไม้"></label>
+                <label>เรื่องราวของคุณ<textarea name="PostContent" required minlength="20" rows="5" maxlength="1200" placeholder="เล่าว่าคุณทำอะไร ผลลัพธ์เป็นอย่างไร หรืออยากแนะนำอะไรให้เพื่อน ๆ"></textarea></label>
+                <details class="workspace-accordion"><summary>เพิ่มรายละเอียด (ไม่บังคับ)</summary>
+                  <div class="field-grid">
+                    <label>วิธีที่ใช้<textarea name="MethodUsed" rows="3" maxlength="600"></textarea></label><label>ผลที่ได้<textarea name="Result" rows="3" maxlength="600"></textarea></label>
+                    <label>ปัญหาที่พบ<textarea name="Problem" rows="3" maxlength="600"></textarea></label><label>วิธีแก้ไข<textarea name="Solution" rows="3" maxlength="600"></textarea></label>
+                  </div>
+                  <label>คำแนะนำเพิ่มเติม<textarea name="AdviceToFriends" rows="2" maxlength="400"></textarea></label>
+                  <div class="field-grid"><label>ลิงก์รูปภาพ<input name="ImageLinks" type="url" placeholder="https://..."></label><label>แท็ก<input name="Tags" placeholder="เช่น รีไซเคิล, ลดขยะ"></label></div>
+                </details>
+                <label class="workspace-consent"><input name="CommunityRulesConsent" type="checkbox" required ${communityRulesAccepted()?'checked':''}><span>ยอมรับกติกาชุมชน: ใช้ถ้อยคำสุภาพ ไม่เปิดเผยข้อมูลส่วนตัวของผู้อื่น</span></label>
+                <div class="workspace-form-actions"><button class="btn ghost" type="button" onclick="document.getElementById('workspaceComposer').open=false">ยกเลิก</button><button class="btn" type="submit">ส่งโพสต์ให้ครูตรวจสอบ</button></div>
+              </form>
+            </details>
+            ${posts.length ? posts.map(post=>`<div class="panel workspace-feed-card">${postCardHtml(post)}</div>`).join('') : `<div class="panel workspace-empty"><span class="workspace-empty-icon">${icons.community}</span><h3>ยังไม่มีโพสต์ในชุมชน</h3><p>มาเป็นคนแรกที่แบ่งปันเรื่องราวและไอเดียดี ๆ ให้เพื่อน ๆ กัน</p><button class="btn" onclick="openCommunityComposer()">สร้างโพสต์แรก</button></div>`}
           </div>
-          <div class="panel">
-            <h3>ภาพรวมชุมชน</h3>
-            <div class="grid two">
-              ${kpi('โพสต์เผยแพร่', posts.length, 'โพสต์')}
-              ${kpi('รอครูตรวจ', pending, 'โพสต์')}
-              ${kpi('หัวใจสีเขียว', sum(posts, 'Likes'), 'ครั้ง')}
-              ${kpi('ความคิดเห็น', (state.data.postComments || []).length, 'รายการ')}
-            </div>
-            <div class="notice" style="margin-top:14px">นักเรียนได้รับ EXP จากการแชร์ประสบการณ์ที่ผ่านการตรวจ การให้กำลังใจ และการมีส่วนร่วมที่สร้างสรรค์</div>
-          </div>
-        </div>
-        <div class="panel" style="margin-top:16px">
-          <h3>ประสบการณ์จากเพื่อน</h3>
-          ${posts.length ? posts.map(postCardHtml).join('') : '<div class="notice">ยังไม่มีโพสต์ที่เผยแพร่แล้ว โพสต์ใหม่จะปรากฏหลังครูตรวจสอบ</div>'}
+          <aside class="panel workspace-community-side"><h3>โพสต์ของฉัน</h3><div class="workspace-mini-stat"><strong>${pending}</strong><span>รอการตรวจสอบ</span></div><div class="workspace-mini-stat"><strong>${posts.filter(post=>post.UserID === identity.UserID).length}</strong><span>เผยแพร่แล้ว</span></div><div class="workspace-info">แชร์เฉพาะข้อมูลที่คุณยินดีให้เพื่อนและโรงเรียนเห็น</div><button class="btn ghost" onclick="showPage('chat')">ไปที่ห้องแชท</button></aside>
         </div>`;
       document.getElementById('communityPostForm')?.addEventListener('submit', submitCommunityPost);
+    }
+
+    function openCommunityComposer() {
+      const composer = document.getElementById('workspaceComposer');
+      if (!composer) return;
+      composer.open = true;
+      composer.scrollIntoView({behavior:'smooth',block:'start'});
+      composer.querySelector('[name="PostTitle"]')?.focus();
     }
 
     function postCardHtml(post) {
@@ -3515,31 +3583,29 @@ function createInitialGameState() {
         ApprovedBy: '',
         ApprovedAt: '',
       };
+      const submit = form.querySelector('[type="submit"]');
+      if (submit?.disabled) return;
+      if (submit) { submit.disabled = true; submit.textContent = 'กำลังส่ง...'; }
       try {
         const result = await sheetApi('appendCommunityPost', { post });
         state.data.communityPosts.push(normalizeRow(result.post || post));
-        alert('ส่งโพสต์แล้ว รอครูตรวจสอบก่อนเผยแพร่');
+        renderCommunity();
+        alert('ส่งโพสต์สำเร็จ! ครูจะตรวจสอบก่อนเผยแพร่ในชุมชน');
       } catch (error) {
-        state.data.communityPosts.push(normalizeRow(post));
-        queuePendingWrite('appendCommunityPost', { post });
-        alert('บันทึกโพสต์ไว้ในเครื่องแล้ว และจะส่งเข้า Google Sheets เมื่อเชื่อมต่อได้: ' + error.message);
+        console.warn('Community post failed', error);
+        alert('ยังส่งโพสต์ไม่สำเร็จ ข้อมูลที่กรอกยังอยู่ กรุณาลองอีกครั้ง');
+      } finally {
+        if (submit) { submit.disabled = false; submit.textContent = 'ส่งโพสต์ให้ครูตรวจสอบ'; }
       }
-      saveToLocalStorage();
-      form.reset();
-      renderCommunity();
     }
 
     async function encouragePost(postId) {
-      const post = (state.data.communityPosts || []).find((item) => item.PostID === postId);
-      if (post) post.Likes = Number(post.Likes || 0) + 1;
+      const post = (state.data.communityPosts || []).find(item => item.PostID === postId);
       try {
         const result = await sheetApi('sendCommunityLike', { postId });
         if (result.post && post) Object.assign(post, normalizeRow(result.post));
-      } catch (error) {
-        queuePendingWrite('sendCommunityLike', { postId });
-      }
-      saveToLocalStorage();
-      renderCommunity();
+        renderCommunity();
+      } catch (error) { alert('ยังส่งกำลังใจไม่สำเร็จ กรุณาลองอีกครั้ง'); }
     }
 
     async function commentOnPost(postId) {
@@ -3566,14 +3632,12 @@ function createInitialGameState() {
       try {
         const result = await sheetApi('appendPostComment', { comment });
         state.data.postComments.push(normalizeRow(result.comment || comment));
-        alert('ส่งความคิดเห็นแล้ว รอครูตรวจสอบก่อนเผยแพร่');
+        renderCommunity();
+        alert('ส่งความคิดเห็นแล้ว กำลังรอครูตรวจสอบ');
       } catch (error) {
-        state.data.postComments.push(normalizeRow(comment));
-        queuePendingWrite('appendPostComment', { comment });
-        alert('บันทึกความคิดเห็นไว้ในเครื่องแล้ว และจะส่งเข้า Google Sheets เมื่อเชื่อมต่อได้');
+        console.warn('Comment submission failed', error);
+        alert('ยังส่งความคิดเห็นไม่สำเร็จ กรุณาลองอีกครั้ง');
       }
-      saveToLocalStorage();
-      renderCommunity();
     }
 
     function renderFriends() {
@@ -3872,6 +3936,16 @@ function createInitialGameState() {
       });
     }
 
+    function refreshChatMessages() {
+      const windowEl = document.getElementById('chatWindow');
+      if (!windowEl) { renderChat(); return; }
+      const messages = (state.data.chatMessages || []).filter(m => m.ChatRoomID === state.chatRoom && !statusIsHidden(m.ModerationStatus)).sort((a,b)=>String(a.Timestamp||'').localeCompare(String(b.Timestamp||'')));
+      const nearBottom = windowEl.scrollHeight - windowEl.clientHeight - windowEl.scrollTop < 100;
+      const previousTop = windowEl.scrollTop;
+      windowEl.innerHTML = messages.length ? `${messages.some(m=>truthy(m.IsPinned)) ? '<div class="chat-system">มีข้อความปักหมุดในห้องนี้</div>' : ''}${chatMessageStreamHtml(messages)}` : '<div class="chat-system">ยังไม่มีข้อความ ลองทักทายเพื่อน ๆ ได้เลย</div>';
+      windowEl.scrollTop = nearBottom ? windowEl.scrollHeight : previousTop;
+    }
+
     function setChatRoom(roomId) {
       state.chatRoom = roomId;
       state.replyToMessageID = '';
@@ -3981,61 +4055,39 @@ function createInitialGameState() {
     async function sendChatMessage(event) {
       event.preventDefault();
       const form = event.currentTarget;
-      const data = Object.fromEntries(new FormData(form).entries());
-      const fileInput = document.getElementById('chatImageFile');
-      const imagePayload = fileInput?.files?.length ? (await filesToPayload(fileInput.files))[0] : null;
-      const text = String(data.MessageText || '').trim();
-      if (!text && !imagePayload) {
-        alert('กรุณาพิมพ์ข้อความหรือแนบรูปภาพก่อนส่ง');
-        return;
-      }
+      const input = document.getElementById('chatMessageInput');
+      const file = document.getElementById('chatImageFile')?.files?.[0];
+      const text = String(input?.value || '').trim();
+      if (!text && !file) { alert('กรุณาพิมพ์ข้อความหรือแนบรูปภาพก่อนส่ง'); return; }
+      if (file && (file.size > 5*1024*1024 || !['image/jpeg','image/png','image/webp'].includes(file.type))) { alert('รองรับรูป JPG, PNG, WebP ขนาดไม่เกิน 5 MB'); return; }
       const check = moderateMessageText(text);
-      if (!check.ok) {
-        alert(check.message);
-        return;
-      }
-      state.chatIdentity = {
-        DisplayName: data.DisplayName || '',
-        ClassName: data.ClassName || '',
-        UserID: data.UserID || data.DisplayName || '',
-      };
-      localStorage.setItem('greenPassportChatIdentity', JSON.stringify(state.chatIdentity));
-      const message = {
-        MessageID: `MSG-${Date.now()}`,
-        ChatRoomID: state.chatRoom,
-        Timestamp: nowStamp(),
-        UserID: data.UserID || data.DisplayName || 'guest',
-        DisplayName: data.DisplayName,
-        ClassName: data.ClassName,
-        MessageText: text,
-        ImageLink: imagePayload?.data || '',
-        MessageType: imagePayload ? 'image' : 'text',
-        ReplyToMessageID: state.replyToMessageID || '',
-        IsPinned: false,
-        ReportStatus: '',
-        ModerationStatus: 'ปกติ',
-      };
-      if (firebaseDb) {
-        try {
-          await firebaseDb.ref(`chatMessages/${state.chatRoom}/${message.MessageID}`).set(message);
-        } catch (error) {
-          console.error("Firebase send message error:", error);
-          alert("ส่งข้อความเข้า Firebase ไม่สำเร็จ: " + error.message);
-        }
-      } else {
-        try {
+      if (!check.ok) { alert(check.message); return; }
+      const button = form.querySelector('[type="submit"]');
+      if (button?.disabled) return;
+      if (button) button.disabled = true;
+      try {
+        const room = state.chatRoom;
+        const identity = currentUserIdentity();
+        const imagePayload = file ? (await filesToPayload([file]))[0] : null;
+        const message = {
+          MessageID: `MSG-${Date.now()}`, ChatRoomID: room, Timestamp: nowStamp(),
+          UserID: identity.UserID, DisplayName: identity.DisplayName, ClassName: identity.ClassName,
+          MessageText: text, ImageLink: imagePayload?.data || '', MessageType: imagePayload ? 'image' : 'text',
+          ReplyToMessageID: state.replyToMessageID || '', IsPinned: false, ReportStatus: '', ModerationStatus: 'ปกติ'
+        };
+        if (firebaseDb) await firebaseDb.ref(`chatMessages/${room}/${message.MessageID}`).set(message);
+        else {
           const result = await sheetApi('appendChatMessage', { message });
           state.data.chatMessages.push(normalizeRow(result.message || message));
-        } catch (error) {
-          state.data.chatMessages.push(normalizeRow(message));
-          queuePendingWrite('appendChatMessage', { message });
-          alert('บันทึกข้อความไว้ในเครื่องแล้ว และจะส่งเข้า Google Sheets เมื่อเชื่อมต่อได้');
         }
-      }
-      saveToLocalStorage();
-      state.replyToMessageID = '';
-      form.reset();
-      renderChat();
+        if (state.active === 'chat' && state.chatRoom === room) {
+          state.replyToMessageID = ''; form.reset(); renderChat();
+          document.getElementById('chatMessageInput')?.focus();
+        }
+      } catch (error) {
+        console.warn('Chat message failed', error);
+        alert('ส่งข้อความไม่สำเร็จ ลองใหม่อีกครั้งได้เลย ข้อความที่พิมพ์ไว้ยังอยู่');
+      } finally { if (button) button.disabled = false; }
     }
 
     async function sendSticker(text) {
@@ -4108,63 +4160,34 @@ function createInitialGameState() {
 
 
 // ---- src/js/pages/profile.js ----
+    function showOwnProfile() { state.profileUserID = state.currentUser?.UserID || ''; showPage('profile'); }
+
     function renderProfile() {
       const profiles = allProfiles();
+      const myId = currentUserIdentity().UserID;
       if (!profiles.length) {
-        document.getElementById('profile').innerHTML = '<div class="panel"><h3>โปรไฟล์ของฉัน</h3><div class="notice">ยังไม่มีข้อมูลโปรไฟล์ เริ่มจากบันทึกข้อมูลขยะหรือเล่นเกมก่อน</div></div>';
+        document.getElementById('profile').innerHTML = '<div class="panel workspace-empty"><h3>ยังไม่มีข้อมูลโปรไฟล์</h3><p>เริ่มทำกิจกรรมเพื่อสะสมความก้าวหน้า</p><button class="btn" onclick="showPage(\'record\')">เริ่มบันทึก</button></div>';
         return;
       }
-      if (!profiles.some((profile) => (profile.UserID || profile.DisplayName) === state.profileUserID)) {
-        const currentId = currentUserIdentity().UserID;
-        const currentProfile = profiles.find((profile) => (profile.UserID || profile.DisplayName) === currentId);
-        state.profileUserID = currentProfile ? currentId : profiles[0].UserID || profiles[0].DisplayName;
-      }
-      const profile = profiles.find((item) => (item.UserID || item.DisplayName) === state.profileUserID) || profiles[0];
+      const profile = profiles.find(p => (p.UserID || p.DisplayName) === state.profileUserID) || profiles.find(p=>p.UserID === myId) || profiles[0];
+      state.profileUserID = profile.UserID || profile.DisplayName;
+      const own = state.profileUserID === myId;
       const current = levelInfoByEXP(profile.CurrentEXP);
       const next = nextLevelInfo(profile.CurrentEXP);
-      const posts = (state.data.communityPosts || []).filter((post) => (post.UserID === profile.UserID || post.DisplayName === profile.DisplayName) && statusIsPublished(post.ReviewStatus));
+      const posts = (state.data.communityPosts || []).filter(post => post.UserID === profile.UserID && statusIsPublished(post.ReviewStatus));
       document.getElementById('profile').innerHTML = `
-        <div class="panel">
-          <label class="profile-picker">เลือกโปรไฟล์<select onchange="openProfile(this.value)">${profiles.map((item) => {
-            const id = item.UserID || item.DisplayName;
-            return `<option value="${escapeAttr(id)}" ${id === state.profileUserID ? 'selected' : ''}>${escapeHtml(safeDisplayName(item.DisplayName))} · ${escapeHtml(item.LevelName || '')}</option>`;
-          }).join('')}</select></label>
+        <div class="workspace-page-action"><div><h3>${own ? 'โปรไฟล์ของฉัน' : 'โปรไฟล์เพื่อน'}</h3><p>ติดตามความสำเร็จและกิจกรรมที่ผ่านมาของสมาชิก</p></div><button class="btn ghost" onclick="${own ? "showPage('friends')" : 'showOwnProfile()'}">${own?'ดูเพื่อน':'กลับโปรไฟล์ของฉัน'}</button></div>
+        <div class="profile-banner workspace-profile-banner">
+          <div class="workspace-profile-identity"><div class="avatar">${escapeHtml(profile.Avatar || avatarText(profile.DisplayName))}</div><div><span class="workspace-eyebrow">${own ? 'MY GREEN JOURNEY' : 'GREEN COMMUNITY'}</span><h3>${escapeHtml(safeDisplayName(profile.DisplayName))}</h3><p>${escapeHtml(profile.ClassName || (own ? currentUserIdentity().Role : 'สมาชิก'))}</p></div><span class="badge earned">${current.emoji} ${escapeHtml(current.name)}</span></div>
+          <div class="workspace-level-progress"><div><strong>${Number(profile.CurrentEXP || 0)} EXP</strong><span>${current.name === next.name ? 'ถึงระดับสูงสุดแล้ว' : 'อีก ' + Math.max(0,Number(next.min||0)-Number(profile.CurrentEXP||0)) + ' EXP สู่ ' + escapeHtml(next.name)}</span></div><div class="progress-track"><div class="progress-fill" style="width:${progressToNextLevel(profile.CurrentEXP)}%"></div></div></div>
         </div>
-        <div class="profile-banner" style="margin-top:16px">
-          <div class="btn-row" style="justify-content:space-between">
-            <div class="btn-row">
-              <div class="avatar" style="width:64px;height:64px">${escapeHtml(profile.Avatar || avatarText(profile.DisplayName))}</div>
-              <div>
-                <h3>${escapeHtml(safeDisplayName(profile.DisplayName))}</h3>
-                <p>${escapeHtml(profile.ClassName || '')} · ${current.emoji} ${escapeHtml(current.name)}</p>
-              </div>
-            </div>
-            <span class="badge earned">${Number(profile.CurrentEXP || 0)} EXP</span>
-          </div>
-          <div class="progress-track" style="margin-top:16px"><div class="progress-fill" style="width:${progressToNextLevel(profile.CurrentEXP)}%"></div></div>
-          <p style="margin-top:8px">${current.name === next.name ? 'ถึงระดับสูงสุดแล้ว' : `อีก ${Math.max(0, Number(next.min || 0) - Number(profile.CurrentEXP || 0))} EXP ถึง ${next.emoji} ${next.name}`}</p>
-        </div>
-        <div class="grid four" style="margin-top:16px">
-          ${kpi('EXP', Number(profile.CurrentEXP || 0), '')}
-          ${kpi('คะแนนเกม', Number(profile.TotalScore || 0), 'คะแนน')}
-          ${kpi('Badge', Number(profile.TotalBadges || 0), 'ชิ้น')}
-          ${kpi('โพสต์', Number(profile.TotalPosts || posts.length || 0), 'โพสต์')}
-        </div>
+        <div class="workspace-section-title"><div><h3>สถิติและความสำเร็จ</h3><p>อัปเดตจากกิจกรรมที่บันทึกไว้</p></div></div>
+        <div class="workspace-stats"><div class="workspace-stat"><span class="workspace-stat-icon">${icons.game}</span><div><span>คะแนนเกม</span><strong>${Number(profile.TotalScore||0)}</strong></div></div><div class="workspace-stat"><span class="workspace-stat-icon">${icons.award}</span><div><span>Badge</span><strong>${Number(profile.TotalBadges||0)}</strong></div></div><div class="workspace-stat"><span class="workspace-stat-icon">${icons.community}</span><div><span>โพสต์</span><strong>${Number(profile.TotalPosts||posts.length||0)}</strong></div></div></div>
         <div class="grid two" style="margin-top:16px">
-          <div class="panel">
-            <h3>เส้นทาง Level</h3>
-            <div class="level-row">${levelCatalog.map((level) => `<div class="level-chip ${level.name === current.name ? 'active' : ''}"><div class="emoji">${level.emoji}</div><strong>${level.name}</strong><span>${level.min}+ EXP</span></div>`).join('')}</div>
-          </div>
-          <div class="panel">
-            <h3>ผลงานของฉัน</h3>
-            <p>${escapeHtml(profile.HouseholdStatus || 'กำลังสะสมผลงานลดขยะในครัวเรือน')}</p>
-            <div class="grid two">
-              ${kpi('ส่งข้อมูล', Number(profile.TotalSubmissions || 0), 'ครั้ง')}
-              ${kpi('ลดคาร์บอน', format(profile.TotalCO2e || 0), 'kgCO₂e')}
-            </div>
-            <div class="tag-row" style="margin-top:12px">${posts.slice(0, 6).map((post) => `<span class="tag">${escapeHtml(post.PostTitle)}</span>`).join('') || '<span class="tag">เริ่มแชร์ประสบการณ์ได้ที่หน้าชุมชน</span>'}</div>
-          </div>
-        </div>`;
+          <div class="panel"><h3>ผลลัพธ์กิจกรรม</h3><div class="workspace-mini-stat"><span>บันทึกขยะ</span><strong>${Number(profile.TotalSubmissions||0)}</strong></div><div class="workspace-mini-stat"><span>ลดคาร์บอน (kgCO₂e)</span><strong>${format(profile.TotalCO2e||0)}</strong></div>${own ? '<button class="btn" style="margin-top:14px" onclick="showPage(\'record\')">เพิ่มกิจกรรม</button>' : ''}</div>
+          <div class="panel"><h3>เรื่องราวที่แบ่งปัน</h3>${posts.length ? `<div class="tag-row">${posts.slice(0,6).map(post=>`<span class="tag">${escapeHtml(post.PostTitle)}</span>`).join('')}</div>` : '<p>ยังไม่มีโพสต์ที่เผยแพร่</p>'}<button class="btn ghost" style="margin-top:14px" onclick="showPage('community')">ไปที่ชุมชน</button></div>
+        </div>
+        <details class="panel workspace-accordion" style="margin-top:16px"><summary>ดูระดับและรางวัลทั้งหมด</summary><div class="level-row">${levelCatalog.map(level=>`<div class="level-chip ${level.name===current.name?'active':''}"><div class="emoji">${level.emoji}</div><strong>${escapeHtml(level.name)}</strong><span>${level.min}+ EXP</span></div>`).join('')}</div></details>`;
     }
 
 
@@ -4577,56 +4600,34 @@ function impactSummary() {
     }
 
     function adminPanelHtml() {
-      return `<div class="grid">
-        ${sheetConnectionPanelHtml()}
-        <div class="panel">
-          <h3>Admin Dashboard</h3>
-          <div class="privacy-box" style="margin-bottom:12px">เพื่อความปลอดภัย ไม่ควรแสดงรหัส Admin ในหน้าเว็บจริง ควรตั้งผ่าน Script Properties จำกัดสิทธิ์ครูผู้ดูแล และซ่อนข้อมูลส่วนบุคคลในรายงานสาธารณะ</div>
-          <div class="field-grid">
-            <label>เดือน<input id="adminMonth" type="month"></label>
-            <label>ห้อง<input id="adminClass" type="text" placeholder="เช่น ป.5/1"></label>
-            <label>ชื่อนักเรียน<input id="adminName" type="text"></label>
-            <label>สถานะ<select id="adminStatus"><option value="">ทั้งหมด</option><option>รอตรวจสอบ</option><option>ผ่านการตรวจสอบ</option><option>ต้องแก้ไข</option><option>หลักฐานไม่ชัดเจน</option><option>ข้อมูลไม่ตรงกับหลักฐาน</option></select></label>
-          </div>
-          <div class="btn-row" style="margin-top:12px">
-            <button class="btn ghost" onclick="renderAdminTable()">กรองข้อมูล</button>
-            <button class="btn secondary" onclick="copyLineReminder()">สร้างข้อความ LINE</button>
-            <button class="btn yellow" onclick="exportCsv('records')">Export ข้อมูล</button>
-            <button class="btn yellow" onclick="exportCsv('summary')">Export สรุป</button>
-            <button class="btn yellow" onclick="exportCsv('impact')">Export รายงานประกวด</button>
-            <button class="btn yellow" onclick="exportCsv('missions')">Export ภารกิจรายเดือน</button>
-          </div>
-        </div>
-        ${adminToolsPanelHtml()}
-        <div id="adminCommunityPanel">${adminLoadingHtml('ข้อมูลชุมชน')}</div>
-        <div class="panel">
-          <h3>Export Reports</h3>
-          <div class="download-grid">
-            ${[
-              ['records','รายงานรายเดือน'],
-              ['summary','รายงานรายครัวเรือน'],
-              ['impact','รายงานภาพรวมโครงการ'],
-              ['carbon','รายงานลดก๊าซเรือนกระจก'],
-              ['complete','รายชื่อผู้ส่งข้อมูลครบ'],
-              ['missing','รายชื่อผู้ยังไม่ส่งข้อมูล'],
-              ['reviewed','รายงานหลักฐานที่ผ่านการตรวจสอบ'],
-              ['modelHomes','รายงานครัวเรือนต้นแบบ'],
-              ['infographic','ข้อมูลสำหรับทำ Infographic'],
-              ['contest','ข้อมูลสำหรับส่งประกวดนวัตกรรม'],
-              ['missions','ภารกิจรายเดือน'],
-              ['communityPosts','โพสต์ชุมชน'],
-              ['postComments','ความคิดเห็นชุมชน'],
-              ['chatMessages','ข้อความ Green Chat'],
-              ['userProfiles','โปรไฟล์และ Level'],
-              ['levelRules','เกณฑ์ Level/EXP'],
-              ['expLogs','บันทึก EXP'],
-            ].map(([type, label]) => `<button class="btn ghost" onclick="exportCsv('${type}')">${label}</button>`).join('')}
-          </div>
-        </div>
-        <div class="panel"><h3>ตรวจสอบหลักฐานโดยครู</h3><div id="adminTable">${adminLoadingHtml('ตารางตรวจหลักฐาน')}</div></div>
-        <div class="panel"><h3>ผลการเล่นเกม Trash Hero Academy</h3><div id="adminGameScoresPanel">${adminLoadingHtml('คะแนนเกม')}</div></div>
-        <div id="adminErrorConsolePanel">${adminLoadingHtml('คอนโซล Error')}</div>
-      </div>`;
+      const tabs = [['records','รายการบันทึก'],...(state.currentUser?.Role === 'admin' ? [['members','สมาชิก']] : []),['community','ชุมชน'],['reports','รายงาน'],['tools','เครื่องมือ'],['system','ระบบ']];
+      const active = tabs.some(([id]) => id === state.adminTab) ? state.adminTab : 'records';
+      state.adminTab = active;
+      const records = state.data.wasteRecords || [];
+      const pending = records.filter(r => isProblemReviewStatus(r.ReviewStatus)).length;
+      const pane = (id, content) => `<div class="workspace-admin-pane" data-admin-pane="${id}" ${id === active ? '' : 'hidden'}>${content}</div>`;
+      const filters = `<div class="panel"><div class="workspace-page-action"><div><h3>ตรวจสอบรายการบันทึก</h3><p>ค้นหาและคัดกรองรายการก่อนอนุมัติ</p></div><button class="btn ghost" onclick="refreshWorkspaceData()">รีเฟรช</button></div>
+        <div class="field-grid"><label>เดือน<input id="adminMonth" type="month"></label><label>ชั้น / ห้อง<input id="adminClass" type="text" placeholder="ม.5/1"></label><label>ค้นหาชื่อ<input id="adminName" type="search" placeholder="ชื่อนักเรียนหรือครัวเรือน"></label><label>สถานะ<select id="adminStatus"><option value="">ทุกสถานะ</option><option>รอตรวจสอบ</option><option>ผ่านการตรวจสอบ</option><option>ต้องแก้ไข</option><option>หลักฐานไม่ชัดเจน</option><option>ข้อมูลไม่ตรงกับหลักฐาน</option></select></label></div>
+        <div class="btn-row" style="margin-top:14px"><button class="btn" onclick="renderAdminTable()">ค้นหารายการ</button><button class="btn ghost" onclick="exportCsv('records')">ดาวน์โหลด CSV</button><button class="btn ghost" onclick="copyLineReminder()">คัดลอกข้อความเตือน</button></div></div>
+        <div class="panel"><h3>รายการส่งเข้ามา</h3><div id="adminTable">${adminLoadingHtml('รายการบันทึก')}</div></div>`;
+      const reports = [['records','รายการบันทึก'],['summary','สรุปครัวเรือน'],['impact','ผลกระทบสิ่งแวดล้อม'],['carbon','ตัวคูณคาร์บอน'],['complete','ครัวเรือนที่ส่งครบ'],['missing','ครัวเรือนที่ยังไม่ส่ง'],['reviewed','รายการที่ตรวจแล้ว'],['modelHomes','ครัวเรือนต้นแบบ'],['infographic','ข้อมูล Infographic'],['contest','ข้อมูลการแข่งขัน'],['missions','ภารกิจ'],['communityPosts','โพสต์ชุมชน'],['postComments','ความคิดเห็น'],['chatMessages','ประวัติแชท'],['userProfiles','โปรไฟล์สมาชิก'],['levelRules','เกณฑ์ Level / EXP'],['expLogs','ประวัติ EXP']];
+      return `<div class="workspace-stats" style="margin-bottom:17px"><div class="workspace-stat"><span class="workspace-stat-icon">${icons.edit}</span><div><span>รายการทั้งหมด</span><strong>${records.length}</strong></div></div><div class="workspace-stat"><span class="workspace-stat-icon">${icons.bell}</span><div><span>ต้องตรวจสอบ</span><strong>${pending}</strong></div></div><div class="workspace-stat"><span class="workspace-stat-icon">${icons.profile}</span><div><span>สมาชิกที่อนุมัติแล้ว</span><strong>${(state.data.userProfiles||[]).length}</strong></div></div></div>
+        <nav class="workspace-tabs" aria-label="เมนูจัดการระบบ">${tabs.map(([id,label])=>`<button type="button" data-admin-tab="${id}" class="${id===active?'active':''}" aria-pressed="${id === active}" onclick="setAdminTab('${id}')">${label}</button>`).join('')}</nav>
+        ${pane('records', filters)}
+        ${state.currentUser?.Role === 'admin' ? pane('members','<div class="panel"><h3>อนุมัติสมาชิกใหม่</h3><p>ตรวจสอบข้อมูลนักเรียนหรือผู้ปกครองก่อนอนุมัติเข้าใช้งาน</p><div id="gpPendingMembers">กำลังโหลด...</div></div>') : ''}
+        ${pane('community',`<div id="adminCommunityPanel">${adminLoadingHtml('ข้อมูลชุมชน')}</div>`)}
+        ${pane('reports',`<div class="panel"><h3>ดาวน์โหลดรายงาน</h3><p>เลือกรายงานที่ต้องการบันทึกเป็น CSV</p><div class="download-grid">${reports.map(([id,label])=>`<button class="btn ghost" onclick="exportCsv('${id}')">${label}</button>`).join('')}</div></div><div class="panel"><h3>คะแนนเกม</h3><div id="adminGameScoresPanel">${adminLoadingHtml('คะแนน')}</div></div>`)}
+        ${pane('tools', adminToolsPanelHtml())}
+        ${pane('system', sheetConnectionPanelHtml() + `<div id="adminErrorConsolePanel">${adminLoadingHtml('บันทึกข้อผิดพลาด')}</div>`)}`;
+    }
+
+    function setAdminTab(tab) {
+      const target = document.querySelector('[data-admin-pane="' + tab + '"]');
+      if (!target) return;
+      state.adminTab = tab;
+      document.querySelectorAll('[data-admin-tab]').forEach(el => { const active = el.dataset.adminTab === tab; el.classList.toggle('active',active); el.setAttribute('aria-pressed',String(active)); });
+      document.querySelectorAll('[data-admin-pane]').forEach(el => el.hidden = el.dataset.adminPane !== tab);
+      if (tab === 'members' && state.currentUser?.Role === 'admin') gpPendingMembers();
     }
 
     function adminErrorConsoleHtml() {
@@ -5238,7 +5239,7 @@ async function gpChatHistory(room) {
   const { messages } = await gpCall('chatHistory', { roomId: room });
   await Promise.all(messages.map(async m => { if (m.ImagePath) m.ImageLink = await gpSignedUrl('gp-chat', m.ImagePath); }));
   state.data.chatMessages = state.data.chatMessages.filter(m => m.ChatRoomID !== room).concat(messages.map(normalizeRow));
-  if (state.active === 'chat' && state.chatRoom === room) renderChat();
+  if (state.active === 'chat' && state.chatRoom === room) refreshChatMessages();
 }
 
 function gpStopChat() {
@@ -5382,7 +5383,8 @@ async function logout() {
   state.chatIdentity = {}; state.active = 'home'; state.authMode = 'login'; renderAuth();
 }
 
-async function reloadData(silent = false) {
+async function reloadData(silent = false, expectedPage = null) {
+  const requester = state.currentUser?.UserID;
   const result = await gpCall('getBootstrapData');
   await Promise.all(result.wasteRecords.map(async r => {
     if (r.EvidencePaths?.length) r.EvidenceFolderLink = await gpSignedUrl('gp-evidence', r.EvidencePaths[0]);
@@ -5390,9 +5392,10 @@ async function reloadData(silent = false) {
   if (!['teacher', 'admin'].includes(state.currentUser?.Role)) result.chatMessages = state.data.chatMessages || [];
   else await Promise.all(result.chatMessages.map(async m => { if (m.ImagePath) m.ImageLink = await gpSignedUrl('gp-chat', m.ImagePath); }));
   result.chatRooms = defaultChatRooms().filter(room => room.ChatRoomID === 'CR-MISSION-01' || ['teacher', 'admin'].includes(state.currentUser?.Role) || (room.ChatRoomID === 'CR-CLASS-01' && state.currentUser?.ClassName === 'ม.1/1'));
+  if (state.currentUser?.UserID !== requester) return;
   hydrateData(result);
   if (!silent) alert('โหลดข้อมูลจาก Supabase เรียบร้อย');
-  renderAll();
+  if (!expectedPage || state.active === expectedPage) renderAll();
 }
 
 // Do not restore account data or queue legacy writes.
@@ -5411,13 +5414,7 @@ function renderAdmin() {
   state.adminPIN = staff ? 'staff-session' : '';
   document.getElementById('admin').innerHTML = staff ? adminPanelHtml() : '<div class="panel"><h3>เฉพาะครูและผู้ดูแลระบบ</h3></div>';
   if (staff) scheduleAdminDeferredRender();
-  if (state.currentUser?.Role === 'admin') {
-    const panel = document.createElement('div');
-    panel.className = 'panel';
-    panel.innerHTML = '<h3>คำขอสมัครสมาชิก</h3><div id="gpPendingMembers">กำลังโหลด...</div>';
-    document.getElementById('admin').prepend(panel);
-    gpPendingMembers();
-  }
+  if (state.currentUser?.Role === 'admin' && state.adminTab === 'members') gpPendingMembers();
 }
 function adminLogin() { renderAdmin(); }
 

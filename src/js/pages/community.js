@@ -53,57 +53,44 @@
 
     function renderCommunity() {
       const posts = publishedPosts();
-      const pending = (state.data.communityPosts || []).filter((post) => String(post.ReviewStatus || '').includes('รอตรวจ')).length;
       const identity = currentUserIdentity();
+      const pending = (state.data.communityPosts || []).filter(post => post.UserID === identity.UserID && !statusIsPublished(post.ReviewStatus) && !statusIsHidden(post.ReviewStatus)).length;
       document.getElementById('community').innerHTML = `
-        <div class="grid two">
-          <div class="panel">
-            <h3>ชุมชน Green Passport</h3>
-            <p>พื้นที่แบ่งปันประสบการณ์ลดขยะในบ้าน ให้กำลังใจเพื่อน และเก็บตัวอย่างวิธีทำจริงจากนักเรียน โดยครูตรวจสอบก่อนเผยแพร่เสมอ</p>
-            ${renderCommunityRules()}
-            <form id="communityPostForm" style="margin-top:16px">
-              <div class="field-grid">
-                <label>ชื่อที่แสดงในชุมชน<input name="DisplayName" required maxlength="40" value="${escapeAttr(identity.DisplayName)}" readonly></label>
-                <label>ชั้น/ห้อง<input name="ClassName" maxlength="20" value="${escapeAttr(identity.ClassName)}" readonly></label>
-                <label>รหัสหรือชื่อย่อผู้ใช้<input name="UserID" maxlength="30" value="${escapeAttr(identity.UserID)}" readonly></label>
-                <label>หมวดหมู่<select name="Category">${communityCategories().map((item) => `<option>${item}</option>`).join('')}</select></label>
-              </div>
-              <label style="margin-top:12px">หัวข้อโพสต์<input name="PostTitle" required maxlength="90" placeholder="เล่าว่าบ้านหรือห้องเรียนทำอะไร"></label>
-              <label style="margin-top:12px">เรื่องเล่า<textarea name="PostContent" required rows="4" maxlength="1200" placeholder="เล่าปัญหา วิธีทำ และผลที่เกิดขึ้น"></textarea></label>
-              <div class="field-grid" style="margin-top:12px">
-                <label>วิธีที่ใช้<textarea name="MethodUsed" rows="3" maxlength="600"></textarea></label>
-                <label>ผลลัพธ์<textarea name="Result" rows="3" maxlength="600"></textarea></label>
-                <label>ปัญหาที่พบ<textarea name="Problem" rows="3" maxlength="600"></textarea></label>
-                <label>วิธีแก้/คำแนะนำ<textarea name="Solution" rows="3" maxlength="600"></textarea></label>
-              </div>
-              <label style="margin-top:12px">ฝากถึงเพื่อน<textarea name="AdviceToFriends" rows="2" maxlength="400"></textarea></label>
-              <div class="field-grid" style="margin-top:12px">
-                <label>ลิงก์รูปภาพหรือหลักฐาน<input name="ImageLinks" type="url" placeholder="https://..."></label>
-                <label>แท็ก<input name="Tags" placeholder="เช่น แยกขยะ, ปุ๋ยหมัก"></label>
-              </div>
-              <label style="margin-top:12px"><span><input name="CommunityRulesConsent" type="checkbox" required style="width:auto;min-height:auto"> ยอมรับกติกาชุมชนและยืนยันว่าไม่เปิดเผยข้อมูลส่วนตัว</span></label>
-              <div class="btn-row" style="margin-top:14px">
-                <button class="btn" type="submit">ส่งโพสต์ให้ครูตรวจ</button>
-                <button class="btn ghost" type="reset">ล้างข้อมูล</button>
-              </div>
-            </form>
+        <div class="workspace-page-action"><div><h3>พื้นที่แบ่งปันสีเขียว</h3><p>เรื่องราวจากเพื่อน ๆ ที่ผ่านการตรวจสอบแล้ว</p></div><div class="btn-row"><button class="btn ghost" onclick="refreshWorkspaceData()">รีเฟรช</button><button class="btn" onclick="openCommunityComposer()">สร้างโพสต์</button></div></div>
+        <div class="workspace-community-layout">
+          <div class="workspace-feed">
+            <details class="panel workspace-compose" id="workspaceComposer">
+              <summary><span>${icons.edit} เขียนเรื่องราวของคุณ</span><small>โพสต์จะรอครูตรวจสอบ</small></summary>
+              <form id="communityPostForm" class="workspace-compose-form">
+                <input type="hidden" name="DisplayName" value="${escapeAttr(identity.DisplayName)}"><input type="hidden" name="ClassName" value="${escapeAttr(identity.ClassName)}"><input type="hidden" name="UserID" value="${escapeAttr(identity.UserID)}">
+                <label>หมวดหมู่<select name="Category">${communityCategories().map(item=>`<option>${escapeHtml(item)}</option>`).join('')}</select></label>
+                <label>หัวข้อ<input name="PostTitle" required maxlength="90" placeholder="เช่น เปลี่ยนขวดพลาสติกเป็นกระถางต้นไม้"></label>
+                <label>เรื่องราวของคุณ<textarea name="PostContent" required minlength="20" rows="5" maxlength="1200" placeholder="เล่าว่าคุณทำอะไร ผลลัพธ์เป็นอย่างไร หรืออยากแนะนำอะไรให้เพื่อน ๆ"></textarea></label>
+                <details class="workspace-accordion"><summary>เพิ่มรายละเอียด (ไม่บังคับ)</summary>
+                  <div class="field-grid">
+                    <label>วิธีที่ใช้<textarea name="MethodUsed" rows="3" maxlength="600"></textarea></label><label>ผลที่ได้<textarea name="Result" rows="3" maxlength="600"></textarea></label>
+                    <label>ปัญหาที่พบ<textarea name="Problem" rows="3" maxlength="600"></textarea></label><label>วิธีแก้ไข<textarea name="Solution" rows="3" maxlength="600"></textarea></label>
+                  </div>
+                  <label>คำแนะนำเพิ่มเติม<textarea name="AdviceToFriends" rows="2" maxlength="400"></textarea></label>
+                  <div class="field-grid"><label>ลิงก์รูปภาพ<input name="ImageLinks" type="url" placeholder="https://..."></label><label>แท็ก<input name="Tags" placeholder="เช่น รีไซเคิล, ลดขยะ"></label></div>
+                </details>
+                <label class="workspace-consent"><input name="CommunityRulesConsent" type="checkbox" required ${communityRulesAccepted()?'checked':''}><span>ยอมรับกติกาชุมชน: ใช้ถ้อยคำสุภาพ ไม่เปิดเผยข้อมูลส่วนตัวของผู้อื่น</span></label>
+                <div class="workspace-form-actions"><button class="btn ghost" type="button" onclick="document.getElementById('workspaceComposer').open=false">ยกเลิก</button><button class="btn" type="submit">ส่งโพสต์ให้ครูตรวจสอบ</button></div>
+              </form>
+            </details>
+            ${posts.length ? posts.map(post=>`<div class="panel workspace-feed-card">${postCardHtml(post)}</div>`).join('') : `<div class="panel workspace-empty"><span class="workspace-empty-icon">${icons.community}</span><h3>ยังไม่มีโพสต์ในชุมชน</h3><p>มาเป็นคนแรกที่แบ่งปันเรื่องราวและไอเดียดี ๆ ให้เพื่อน ๆ กัน</p><button class="btn" onclick="openCommunityComposer()">สร้างโพสต์แรก</button></div>`}
           </div>
-          <div class="panel">
-            <h3>ภาพรวมชุมชน</h3>
-            <div class="grid two">
-              ${kpi('โพสต์เผยแพร่', posts.length, 'โพสต์')}
-              ${kpi('รอครูตรวจ', pending, 'โพสต์')}
-              ${kpi('หัวใจสีเขียว', sum(posts, 'Likes'), 'ครั้ง')}
-              ${kpi('ความคิดเห็น', (state.data.postComments || []).length, 'รายการ')}
-            </div>
-            <div class="notice" style="margin-top:14px">นักเรียนได้รับ EXP จากการแชร์ประสบการณ์ที่ผ่านการตรวจ การให้กำลังใจ และการมีส่วนร่วมที่สร้างสรรค์</div>
-          </div>
-        </div>
-        <div class="panel" style="margin-top:16px">
-          <h3>ประสบการณ์จากเพื่อน</h3>
-          ${posts.length ? posts.map(postCardHtml).join('') : '<div class="notice">ยังไม่มีโพสต์ที่เผยแพร่แล้ว โพสต์ใหม่จะปรากฏหลังครูตรวจสอบ</div>'}
+          <aside class="panel workspace-community-side"><h3>โพสต์ของฉัน</h3><div class="workspace-mini-stat"><strong>${pending}</strong><span>รอการตรวจสอบ</span></div><div class="workspace-mini-stat"><strong>${posts.filter(post=>post.UserID === identity.UserID).length}</strong><span>เผยแพร่แล้ว</span></div><div class="workspace-info">แชร์เฉพาะข้อมูลที่คุณยินดีให้เพื่อนและโรงเรียนเห็น</div><button class="btn ghost" onclick="showPage('chat')">ไปที่ห้องแชท</button></aside>
         </div>`;
       document.getElementById('communityPostForm')?.addEventListener('submit', submitCommunityPost);
+    }
+
+    function openCommunityComposer() {
+      const composer = document.getElementById('workspaceComposer');
+      if (!composer) return;
+      composer.open = true;
+      composer.scrollIntoView({behavior:'smooth',block:'start'});
+      composer.querySelector('[name="PostTitle"]')?.focus();
     }
 
     function postCardHtml(post) {
@@ -187,31 +174,29 @@
         ApprovedBy: '',
         ApprovedAt: '',
       };
+      const submit = form.querySelector('[type="submit"]');
+      if (submit?.disabled) return;
+      if (submit) { submit.disabled = true; submit.textContent = 'กำลังส่ง...'; }
       try {
         const result = await sheetApi('appendCommunityPost', { post });
         state.data.communityPosts.push(normalizeRow(result.post || post));
-        alert('ส่งโพสต์แล้ว รอครูตรวจสอบก่อนเผยแพร่');
+        renderCommunity();
+        alert('ส่งโพสต์สำเร็จ! ครูจะตรวจสอบก่อนเผยแพร่ในชุมชน');
       } catch (error) {
-        state.data.communityPosts.push(normalizeRow(post));
-        queuePendingWrite('appendCommunityPost', { post });
-        alert('บันทึกโพสต์ไว้ในเครื่องแล้ว และจะส่งเข้า Google Sheets เมื่อเชื่อมต่อได้: ' + error.message);
+        console.warn('Community post failed', error);
+        alert('ยังส่งโพสต์ไม่สำเร็จ ข้อมูลที่กรอกยังอยู่ กรุณาลองอีกครั้ง');
+      } finally {
+        if (submit) { submit.disabled = false; submit.textContent = 'ส่งโพสต์ให้ครูตรวจสอบ'; }
       }
-      saveToLocalStorage();
-      form.reset();
-      renderCommunity();
     }
 
     async function encouragePost(postId) {
-      const post = (state.data.communityPosts || []).find((item) => item.PostID === postId);
-      if (post) post.Likes = Number(post.Likes || 0) + 1;
+      const post = (state.data.communityPosts || []).find(item => item.PostID === postId);
       try {
         const result = await sheetApi('sendCommunityLike', { postId });
         if (result.post && post) Object.assign(post, normalizeRow(result.post));
-      } catch (error) {
-        queuePendingWrite('sendCommunityLike', { postId });
-      }
-      saveToLocalStorage();
-      renderCommunity();
+        renderCommunity();
+      } catch (error) { alert('ยังส่งกำลังใจไม่สำเร็จ กรุณาลองอีกครั้ง'); }
     }
 
     async function commentOnPost(postId) {
@@ -238,14 +223,12 @@
       try {
         const result = await sheetApi('appendPostComment', { comment });
         state.data.postComments.push(normalizeRow(result.comment || comment));
-        alert('ส่งความคิดเห็นแล้ว รอครูตรวจสอบก่อนเผยแพร่');
+        renderCommunity();
+        alert('ส่งความคิดเห็นแล้ว กำลังรอครูตรวจสอบ');
       } catch (error) {
-        state.data.postComments.push(normalizeRow(comment));
-        queuePendingWrite('appendPostComment', { comment });
-        alert('บันทึกความคิดเห็นไว้ในเครื่องแล้ว และจะส่งเข้า Google Sheets เมื่อเชื่อมต่อได้');
+        console.warn('Comment submission failed', error);
+        alert('ยังส่งความคิดเห็นไม่สำเร็จ กรุณาลองอีกครั้ง');
       }
-      saveToLocalStorage();
-      renderCommunity();
     }
 
     function renderFriends() {

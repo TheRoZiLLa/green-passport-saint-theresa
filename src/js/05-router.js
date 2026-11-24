@@ -45,22 +45,99 @@
     function renderNav() {
       const side = document.getElementById('sideNav');
       const mobile = document.getElementById('mobileNav');
-      const navPages = mainNavPages();
-      const primaryPages = navPages.filter(([id]) => id !== 'profile');
-      const mobilePages = primaryPages.slice(0, 5);
-      side.innerHTML = primaryPages.map(([id, label, icon]) => `<button class="nav-btn" data-page="${id}" title="${label}">${icons[icon]}<span>${label}</span></button>`).join('');
-      mobile.innerHTML = mobilePages.map(([id, label, icon]) => `<button data-page="${id}" title="${label}">${icons[icon]}<span>${shortLabel(label)}</span></button>`).join('');
-      document.querySelectorAll('[data-page]').forEach((btn) => btn.addEventListener('click', () => showPage(btn.dataset.page)));
+      const groups = [
+        ['ภาพรวม', ['home', 'record', 'impact']],
+        ['เรียนรู้และกิจกรรม', ['guide', 'game', 'leaderboard']],
+        ['ชุมชน', ['community', 'chat', 'friends']],
+        ['บัญชีของฉัน', ['profile']]
+      ];
+      if (isStaffUser()) groups.push(['สำหรับครูและผู้ดูแล', ['admin', 'dashboard']]);
+      const navItem = (id) => {
+        const page = pages.find(p => p[0] === id);
+        return page ? `<button class="nav-btn" data-page="${id}" title="${escapeAttr(workspaceLabel(id))}">${icons[page[2]]}<span>${escapeHtml(workspaceLabel(id))}</span></button>` : '';
+      };
+      side.innerHTML = groups.map(([label, ids]) => `<div class="nav-group"><p>${label}</p>${ids.map(navItem).join('')}</div>`).join('');
+      mobile.innerHTML = ['home','record','game','chat'].map(id => {
+        const p = pages.find(item => item[0] === id);
+        return `<button data-page="${id}" title="${escapeAttr(workspaceLabel(id))}">${icons[p[2]]}<span>${escapeHtml(workspaceMobileLabel(id))}</span></button>`;
+      }).join('') + `<button type="button" onclick="showWorkspaceMenu()" aria-label="เมนูทั้งหมด"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 6h14M5 12h14M5 18h14"/></svg><span>เมนู</span></button>`;
+      document.querySelectorAll('[data-page]').forEach((btn) => btn.addEventListener('click', () => btn.dataset.page === 'profile' ? showOwnProfile() : showPage(btn.dataset.page)));
+    }
+
+    const workspacePages = {
+      home: ['หน้าหลัก', 'เริ่มต้นภารกิจรักษ์โลกของคุณได้จากที่นี่'],
+      record: ['บันทึกขยะ', 'บันทึกกิจกรรมที่บ้านและหลักฐานเพื่อส่งให้ครูตรวจสอบ'],
+      impact: ['ผลลัพธ์สิ่งแวดล้อม', 'ดูว่ากิจกรรมของเราช่วยลดผลกระทบต่อโลกได้อย่างไร'],
+      guide: ['คู่มือแยกขยะ', 'ค้นหาวิธีคัดแยกและจัดการขยะอย่างถูกต้อง'],
+      game: ['Trash Hero Academy', 'เรียนรู้ผ่านเกม ทำภารกิจ และสะสมเหรียญรางวัล'],
+      leaderboard: ['อันดับ', 'ดูอันดับผลลัพธ์การลดคาร์บอนจากข้อมูลที่คุณมีสิทธิ์ดู'],
+      community: ['ชุมชน', 'แบ่งปันไอเดียและติดตามเรื่องราวจากเพื่อน ๆ'],
+      chat: ['แชท', 'พูดคุย แลกเปลี่ยนไอเดีย และขอคำแนะนำ'],
+      friends: ['เพื่อน', 'ค้นหาเพื่อนร่วมภารกิจและดูความก้าวหน้า'],
+      profile: ['โปรไฟล์', 'ติดตามกิจกรรม EXP และความสำเร็จของคุณ'],
+      admin: ['จัดการระบบ', 'ตรวจสอบข้อมูล อนุมัติสมาชิก และดูแลชุมชน'],
+      dashboard: ['Dashboard', 'สรุปข้อมูลรายเดือนและความก้าวหน้าของโครงการ'],
+      compare: ['เปรียบเทียบผลลัพธ์', 'เปรียบเทียบข้อมูลระหว่างช่วงเวลา'],
+      formula: ['วิธีคำนวณคาร์บอน', 'ทำความเข้าใจสูตรและตัวคูณการลดคาร์บอน'],
+      missions: ['ภารกิจประจำเดือน', 'ดูสิ่งที่สามารถทำได้ในแต่ละเดือน'],
+      reminders: ['แจ้งเตือนกิจกรรม', 'ตรวจสอบรายการที่ควรดำเนินการต่อ'],
+      studentRoles: ['บทบาทนักเรียน', 'เรียนรู้หน้าที่ในการเป็นส่วนหนึ่งของโครงการ'],
+      starterKit: ['Starter Kit', 'เครื่องมือเริ่มต้นสำหรับกิจกรรม Zero Waste'],
+      certificate: ['เกียรติบัตร', 'ตรวจสอบและจัดทำเกียรติบัตร']
+    };
+
+    function workspaceLabel(id) { return workspacePages[id]?.[0] || 'Green Passport'; }
+    function workspaceMobileLabel(id) { return ({home:'หน้าหลัก',record:'บันทึก',game:'เกม',chat:'แชท'})[id] || workspaceLabel(id); }
+
+    let workspaceToastTimer;
+    function workspaceToast(message) {
+      let toast = document.getElementById('workspaceToast');
+      if (!toast) { toast = document.createElement('div'); toast.id = 'workspaceToast'; toast.className = 'workspace-toast'; toast.setAttribute('role','status'); document.body.append(toast); }
+      toast.textContent = message; toast.hidden = false;
+      clearTimeout(workspaceToastTimer);
+      workspaceToastTimer = setTimeout(() => { toast.hidden = true; }, 2800);
+    }
+
+    async function refreshWorkspaceData() {
+      if (state.workspaceRefreshing) return;
+      if (state.active === 'community' && (document.querySelector('#communityPostForm [name="PostTitle"]')?.value || document.querySelector('#communityPostForm [name="PostContent"]')?.value)) {
+        if (!await customConfirm('อัปเดตข้อมูลแล้วร่างโพสต์ที่ยังไม่ได้ส่งจะหาย ต้องการดำเนินการต่อหรือไม่?')) return;
+      }
+      const page = state.active;
+      state.workspaceRefreshing = true; workspaceToast('กำลังอัปเดตข้อมูล...');
+      try { await reloadData(true, page); workspaceToast('อัปเดตข้อมูลเรียบร้อย'); }
+      catch (error) { alert('อัปเดตข้อมูลไม่สำเร็จ กรุณาลองอีกครั้ง'); }
+      finally { state.workspaceRefreshing = false; }
+    }
+
+    function showWorkspaceMenu() {
+      let menu = document.getElementById('workspaceMenu');
+      if (!menu) {
+        menu = document.createElement('dialog'); menu.id = 'workspaceMenu'; menu.className = 'workspace-menu-dialog';
+        menu.setAttribute('aria-label','เมนูทั้งหมด'); document.body.append(menu);
+      }
+      const groups = [['กิจกรรมและข้อมูล',['home','record','guide','game','leaderboard','impact']],['ชุมชนและบัญชี',['community','chat','friends','profile']]];
+      if (isStaffUser()) groups.push(['สำหรับครูและผู้ดูแล',['admin','dashboard','compare','formula','missions','reminders','studentRoles','starterKit','certificate']]);
+      menu.innerHTML = `<header><div><small>GREEN PASSPORT</small><h2>เมนูทั้งหมด</h2></div><button type="button" onclick="document.getElementById('workspaceMenu').close()" aria-label="ปิดเมนู">×</button></header>` + groups.map(([name, ids]) => `<section><h3>${name}</h3><div class="workspace-menu-grid">${ids.map(id => `<button type="button" onclick="document.getElementById('workspaceMenu').close();${id === 'profile' ? 'showOwnProfile()' : `showPage('${id}')`}">${icons[pages.find(p=>p[0]===id)?.[2]] || ''}<span>${escapeHtml(workspaceLabel(id))}</span></button>`).join('')}</div></section>`).join('');
+      menu.insertAdjacentHTML('beforeend', '<div class="workspace-menu-footer"><button class="workspace-link" type="button" onclick="document.getElementById(\'workspaceMenu\').close();logout()">ออกจากระบบ</button></div>');
+      if (!menu.open) menu.showModal();
     }
 
     function shortLabel(label) {
       return label.replace('ข้อมูลขยะ', '').replace('Trash Hero Academy', 'เกม').replace('Leaderboard', 'อันดับ');
     }
 
-    function showPage(page) {
+    async function showPage(page) {
       if (!isAuthenticated()) {
         renderAuth();
         return;
+      }
+      if (!pages.some(item => item[0] === page)) return;
+      if (page === 'admin' && !isStaffUser()) { alert('หน้านี้สำหรับครูและผู้ดูแลระบบเท่านั้น'); return; }
+      if (state.active === 'record' && page === 'record' && state.recordDirty) return;
+      if (state.active === 'record' && page !== 'record' && state.recordDirty) {
+        if (!await customConfirm('ยังไม่ได้บันทึกข้อมูล ต้องการออกจากหน้านี้หรือไม่?')) return;
+        state.recordDirty = false;
       }
       state.active = page;
       if (typeof gpStopChat === 'function' && page !== 'chat') gpStopChat();
@@ -68,7 +145,7 @@
         ensureChatRoom();
         subscribeToFirebaseChat(state.chatRoom);
       }
-      if (['leaderboard', 'community', 'admin', 'dashboard'].includes(page) && typeof gpClient !== 'undefined' && gpClient) reloadData(true).catch(console.warn);
+      // Explicit refresh controls keep newly opened forms from being cleared by a delayed data fetch.
       document.body.classList.toggle('chat-active', page === 'chat');
       renderAll();
       window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -82,8 +159,11 @@
       const current = pages.find(([id]) => id === state.active);
       document.body.classList.remove('auth-locked');
       document.body.classList.toggle('chat-active', state.active === 'chat');
-      document.getElementById('pageTitle').textContent = current ? current[1] : 'Green Passport';
+      document.getElementById('pageTitle').textContent = workspaceLabel(state.active);
+      document.getElementById('pageSubtitle').textContent = workspacePages[state.active]?.[1] || '';
       document.getElementById('globalCarbon').textContent = format(state.data.dashboard.totalCO2e || 0);
+      const carbonLabel = document.querySelector('.carbon-pill > div');
+      if (carbonLabel) carbonLabel.textContent = isStaffUser() ? 'คาร์บอนในระบบ' : 'คาร์บอนของคุณ';
       renderAuthUserChip();
       document.querySelectorAll('.section').forEach((s) => s.classList.toggle('active', s.id === state.active));
       document.querySelectorAll('[data-page]').forEach((b) => b.classList.toggle('active', b.dataset.page === state.active));

@@ -86,27 +86,17 @@ function createInitialGameState() {
     }
 
     function renderGameStart() {
+      const total = gameTotals();
+      const complete = state.game.stageResults.filter(stage => stage.completed).length;
       return `
-        <div class="game-hero">
-          <div>
-            <h3>🌱 Trash Hero Academy</h3>
-            <p>เรียนรู้ แยกขยะ ลดคาร์บอน สู่การเป็นฮีโร่พิทักษ์โลกจากโรงเรียนสู่บ้าน 🏡</p>
-            <p class="notice">สวัสดีฮีโร่ตัวน้อย! วันนี้เรามาช่วยโลกด้วยการแยกขยะกันเถอะ 🌱</p>
-            <div class="btn-row" style="margin-top:16px">
-              <button class="btn" onclick="goGameScreen('profile'); playGameSound('button')">🌱 เริ่มภารกิจ</button>
-              <button class="btn ghost" onclick="goGameScreen('map'); playGameSound('button')">🗺️ ดูแผนที่เกม</button>
-            </div>
-            ${soundToggleButton()}
-          </div>
-          <div class="hero-badge-art">${greenBuddy('ฉันคือน้องใบไม้ Green Buddy จะช่วยแนะนำทุกด่านให้สนุกและแยกขยะได้ถูกถัง 💚')}</div>
+        <div class="workspace-welcome workspace-game-welcome">
+          <div class="workspace-welcome-copy"><span class="workspace-eyebrow">9 MISSIONS · LEARN BY PLAYING</span><h2>Trash Hero Academy</h2><p>ฝึกแยกขยะผ่านภารกิจสั้น ๆ เก็บดาว รับ Badge และปลดล็อกด่านต่อไป</p><div class="workspace-welcome-actions"><button class="btn" onclick="goGameScreen('map'); playGameSound('button')">${icons.game} ${complete ? 'เล่นต่อ' : 'เริ่มเล่นเกม'}</button><button class="btn ghost" onclick="goGameScreen('profile')">ข้อมูลผู้เล่น</button></div></div>
+          <div class="workspace-welcome-art">${authArt()}</div>
         </div>
-        ${renderWasteIcons()}
-        ${renderKnowledgeCards()}
-        <div class="grid three" style="margin-top:16px">
-          <div class="card"><h3>🗺️ 9 ด่านภารกิจ</h3><p>แยกขยะ 3Rs คาร์บอน ภารกิจที่บ้าน และบททดสอบสุดท้าย</p></div>
-          <div class="card"><h3>⭐ คะแนน ดาว Badge</h3><p>ผ่านด่านเพื่อสะสมดาวและปลดล็อกตำแหน่งฮีโร่</p></div>
-          <div class="card"><h3>🏡 School to Home</h3><p>นำความรู้ไปใช้จริงที่บ้านและบันทึกผลใน Green Passport</p></div>
-        </div>`;
+        <div class="workspace-section-title"><div><h3>ความก้าวหน้าในเกม</h3><p>เล่นตามลำดับเพื่อปลดล็อกภารกิจ</p></div><button class="workspace-link" onclick="goGameScreen('leaderboard')">อันดับเกม</button></div>
+        <div class="workspace-stats"><div class="workspace-stat"><span class="workspace-stat-icon">${icons.mission}</span><div><span>ด่านที่ผ่าน</span><strong>${complete}<small> / 9</small></strong></div></div><div class="workspace-stat"><span class="workspace-stat-icon">${icons.rank}</span><div><span>คะแนน</span><strong>${total.score}</strong></div></div><div class="workspace-stat"><span class="workspace-stat-icon">${icons.award}</span><div><span>ดาวสะสม</span><strong>${total.stars}</strong></div></div></div>
+        <div class="panel" style="margin-top:20px"><h3>วิธีเล่น</h3><div class="workspace-howto"><div><span>1</span><strong>เลือกภารกิจ</strong><p>เริ่มจากด่านแรกหรือเล่นต่อจากด่านที่ปลดล็อก</p></div><div><span>2</span><strong>ตอบคำถาม</strong><p>เลือกวิธีจัดการขยะให้ถูกต้อง</p></div><div><span>3</span><strong>รับรางวัล</strong><p>สะสมดาวและบันทึกคะแนนเมื่อเล่นเสร็จ</p></div></div>${soundToggleButton()}</div>
+        <details class="panel workspace-accordion" style="margin-top:16px"><summary>ความรู้ก่อนเล่น</summary>${renderWasteIcons()}${renderKnowledgeCards()}</details>`;
     }
 
     function renderGameProfile() {
@@ -470,25 +460,18 @@ function createInitialGameState() {
         score[`Stage${index + 1}Score`] = Number(result.score || 0);
         score[`Stage${index + 1}Stars`] = Number(result.stars || 0);
       });
+      if (state.game.saving) return;
+      state.game.saving = true;
       sheetApi('appendGameScore', { score }).then((result) => {
         if (result.score) state.data.gameScores.push(normalizeRow(result.score));
         if (result.gameScores) state.data.gameScores = result.gameScores.map(normalizeRow);
         state.game.saved = true;
         saveToLocalStorage();
         playGameSound('finish');
-        alert('บันทึกคะแนนเกมลง Google Sheets เรียบร้อย ✅\nยินดีด้วย! คุณได้รับ Badge ใหม่ 🏆');
+        alert('บันทึกคะแนนสำเร็จ! คุณสามารถเล่นด่านถัดไปหรือดูเกียรติบัตรได้');
         goGameScreen(allStagesComplete() ? 'certificate' : 'map');
       }).catch((error) => {
-        if (typeof normalizeRow === 'function') {
-          state.data.gameScores.push(normalizeRow(score));
-        } else {
-          state.data.gameScores.push(score);
-        }
-        queuePendingWrite('appendGameScore', { score });
-        state.game.saved = true;
-        saveToLocalStorage();
-        playGameSound('finish');
-        alert('ยังบันทึกคะแนนลง Google Sheets ไม่สำเร็จ ระบบเก็บคำขอไว้เพื่อส่งซ้ำเมื่อ endpoint พร้อม: ' + error.message);
-        goGameScreen(allStagesComplete() ? 'certificate' : 'map');
-      });
+        console.warn('Game score save failed', error);
+        alert('ยังบันทึกคะแนนไม่สำเร็จ ผลการเล่นยังอยู่ กรุณาลองบันทึกอีกครั้ง');
+      }).finally(() => { state.game.saving = false; });
     }

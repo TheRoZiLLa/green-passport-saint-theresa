@@ -39,8 +39,10 @@
     const adminOnlyPageIds = new Set(['dashboard','compare','formula','missions','reminders','studentRoles','starterKit','certificate']);
 
     function mainNavPages() {
-      return pages.filter(([id]) => !adminOnlyPageIds.has(id));
+      return pages.filter(([id]) => !adminOnlyPageIds.has(id) && (id !== 'admin' || isStaffUser()));
     }
+
+    function isStaffUser() { return ['teacher', 'admin'].includes(state?.currentUser?.Role); }
 
     function adminToolPages() {
       return pages.filter(([id]) => adminOnlyPageIds.has(id));

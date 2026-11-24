@@ -781,7 +781,7 @@
       }
       const user = currentUserIdentity();
       const chipHtml = `
-        <button type="button" class="auth-user-profile-trigger" onclick="showPage('profile')" title="เปิดโปรไฟล์">
+        <button type="button" class="auth-user-profile-trigger" onclick="showOwnProfile()" title="เปิดโปรไฟล์">
           <div class="avatar">${escapeHtml(avatarText(user.DisplayName))}</div>
           <span class="auth-user-profile-text">
             <strong>${escapeHtml(user.DisplayName)}</strong>

@@ -98,56 +98,34 @@
     }
 
     function adminPanelHtml() {
-      return `<div class="grid">
-        ${sheetConnectionPanelHtml()}
-        <div class="panel">
-          <h3>Admin Dashboard</h3>
-          <div class="privacy-box" style="margin-bottom:12px">เพื่อความปลอดภัย ไม่ควรแสดงรหัส Admin ในหน้าเว็บจริง ควรตั้งผ่าน Script Properties จำกัดสิทธิ์ครูผู้ดูแล และซ่อนข้อมูลส่วนบุคคลในรายงานสาธารณะ</div>
-          <div class="field-grid">
-            <label>เดือน<input id="adminMonth" type="month"></label>
-            <label>ห้อง<input id="adminClass" type="text" placeholder="เช่น ป.5/1"></label>
-            <label>ชื่อนักเรียน<input id="adminName" type="text"></label>
-            <label>สถานะ<select id="adminStatus"><option value="">ทั้งหมด</option><option>รอตรวจสอบ</option><option>ผ่านการตรวจสอบ</option><option>ต้องแก้ไข</option><option>หลักฐานไม่ชัดเจน</option><option>ข้อมูลไม่ตรงกับหลักฐาน</option></select></label>
-          </div>
-          <div class="btn-row" style="margin-top:12px">
-            <button class="btn ghost" onclick="renderAdminTable()">กรองข้อมูล</button>
-            <button class="btn secondary" onclick="copyLineReminder()">สร้างข้อความ LINE</button>
-            <button class="btn yellow" onclick="exportCsv('records')">Export ข้อมูล</button>
-            <button class="btn yellow" onclick="exportCsv('summary')">Export สรุป</button>
-            <button class="btn yellow" onclick="exportCsv('impact')">Export รายงานประกวด</button>
-            <button class="btn yellow" onclick="exportCsv('missions')">Export ภารกิจรายเดือน</button>
-          </div>
-        </div>
-        ${adminToolsPanelHtml()}
-        <div id="adminCommunityPanel">${adminLoadingHtml('ข้อมูลชุมชน')}</div>
-        <div class="panel">
-          <h3>Export Reports</h3>
-          <div class="download-grid">
-            ${[
-              ['records','รายงานรายเดือน'],
-              ['summary','รายงานรายครัวเรือน'],
-              ['impact','รายงานภาพรวมโครงการ'],
-              ['carbon','รายงานลดก๊าซเรือนกระจก'],
-              ['complete','รายชื่อผู้ส่งข้อมูลครบ'],
-              ['missing','รายชื่อผู้ยังไม่ส่งข้อมูล'],
-              ['reviewed','รายงานหลักฐานที่ผ่านการตรวจสอบ'],
-              ['modelHomes','รายงานครัวเรือนต้นแบบ'],
-              ['infographic','ข้อมูลสำหรับทำ Infographic'],
-              ['contest','ข้อมูลสำหรับส่งประกวดนวัตกรรม'],
-              ['missions','ภารกิจรายเดือน'],
-              ['communityPosts','โพสต์ชุมชน'],
-              ['postComments','ความคิดเห็นชุมชน'],
-              ['chatMessages','ข้อความ Green Chat'],
-              ['userProfiles','โปรไฟล์และ Level'],
-              ['levelRules','เกณฑ์ Level/EXP'],
-              ['expLogs','บันทึก EXP'],
-            ].map(([type, label]) => `<button class="btn ghost" onclick="exportCsv('${type}')">${label}</button>`).join('')}
-          </div>
-        </div>
-        <div class="panel"><h3>ตรวจสอบหลักฐานโดยครู</h3><div id="adminTable">${adminLoadingHtml('ตารางตรวจหลักฐาน')}</div></div>
-        <div class="panel"><h3>ผลการเล่นเกม Trash Hero Academy</h3><div id="adminGameScoresPanel">${adminLoadingHtml('คะแนนเกม')}</div></div>
-        <div id="adminErrorConsolePanel">${adminLoadingHtml('คอนโซล Error')}</div>
-      </div>`;
+      const tabs = [['records','รายการบันทึก'],...(state.currentUser?.Role === 'admin' ? [['members','สมาชิก']] : []),['community','ชุมชน'],['reports','รายงาน'],['tools','เครื่องมือ'],['system','ระบบ']];
+      const active = tabs.some(([id]) => id === state.adminTab) ? state.adminTab : 'records';
+      state.adminTab = active;
+      const records = state.data.wasteRecords || [];
+      const pending = records.filter(r => isProblemReviewStatus(r.ReviewStatus)).length;
+      const pane = (id, content) => `<div class="workspace-admin-pane" data-admin-pane="${id}" ${id === active ? '' : 'hidden'}>${content}</div>`;
+      const filters = `<div class="panel"><div class="workspace-page-action"><div><h3>ตรวจสอบรายการบันทึก</h3><p>ค้นหาและคัดกรองรายการก่อนอนุมัติ</p></div><button class="btn ghost" onclick="refreshWorkspaceData()">รีเฟรช</button></div>
+        <div class="field-grid"><label>เดือน<input id="adminMonth" type="month"></label><label>ชั้น / ห้อง<input id="adminClass" type="text" placeholder="ม.5/1"></label><label>ค้นหาชื่อ<input id="adminName" type="search" placeholder="ชื่อนักเรียนหรือครัวเรือน"></label><label>สถานะ<select id="adminStatus"><option value="">ทุกสถานะ</option><option>รอตรวจสอบ</option><option>ผ่านการตรวจสอบ</option><option>ต้องแก้ไข</option><option>หลักฐานไม่ชัดเจน</option><option>ข้อมูลไม่ตรงกับหลักฐาน</option></select></label></div>
+        <div class="btn-row" style="margin-top:14px"><button class="btn" onclick="renderAdminTable()">ค้นหารายการ</button><button class="btn ghost" onclick="exportCsv('records')">ดาวน์โหลด CSV</button><button class="btn ghost" onclick="copyLineReminder()">คัดลอกข้อความเตือน</button></div></div>
+        <div class="panel"><h3>รายการส่งเข้ามา</h3><div id="adminTable">${adminLoadingHtml('รายการบันทึก')}</div></div>`;
+      const reports = [['records','รายการบันทึก'],['summary','สรุปครัวเรือน'],['impact','ผลกระทบสิ่งแวดล้อม'],['carbon','ตัวคูณคาร์บอน'],['complete','ครัวเรือนที่ส่งครบ'],['missing','ครัวเรือนที่ยังไม่ส่ง'],['reviewed','รายการที่ตรวจแล้ว'],['modelHomes','ครัวเรือนต้นแบบ'],['infographic','ข้อมูล Infographic'],['contest','ข้อมูลการแข่งขัน'],['missions','ภารกิจ'],['communityPosts','โพสต์ชุมชน'],['postComments','ความคิดเห็น'],['chatMessages','ประวัติแชท'],['userProfiles','โปรไฟล์สมาชิก'],['levelRules','เกณฑ์ Level / EXP'],['expLogs','ประวัติ EXP']];
+      return `<div class="workspace-stats" style="margin-bottom:17px"><div class="workspace-stat"><span class="workspace-stat-icon">${icons.edit}</span><div><span>รายการทั้งหมด</span><strong>${records.length}</strong></div></div><div class="workspace-stat"><span class="workspace-stat-icon">${icons.bell}</span><div><span>ต้องตรวจสอบ</span><strong>${pending}</strong></div></div><div class="workspace-stat"><span class="workspace-stat-icon">${icons.profile}</span><div><span>สมาชิกที่อนุมัติแล้ว</span><strong>${(state.data.userProfiles||[]).length}</strong></div></div></div>
+        <nav class="workspace-tabs" aria-label="เมนูจัดการระบบ">${tabs.map(([id,label])=>`<button type="button" data-admin-tab="${id}" class="${id===active?'active':''}" aria-pressed="${id === active}" onclick="setAdminTab('${id}')">${label}</button>`).join('')}</nav>
+        ${pane('records', filters)}
+        ${state.currentUser?.Role === 'admin' ? pane('members','<div class="panel"><h3>อนุมัติสมาชิกใหม่</h3><p>ตรวจสอบข้อมูลนักเรียนหรือผู้ปกครองก่อนอนุมัติเข้าใช้งาน</p><div id="gpPendingMembers">กำลังโหลด...</div></div>') : ''}
+        ${pane('community',`<div id="adminCommunityPanel">${adminLoadingHtml('ข้อมูลชุมชน')}</div>`)}
+        ${pane('reports',`<div class="panel"><h3>ดาวน์โหลดรายงาน</h3><p>เลือกรายงานที่ต้องการบันทึกเป็น CSV</p><div class="download-grid">${reports.map(([id,label])=>`<button class="btn ghost" onclick="exportCsv('${id}')">${label}</button>`).join('')}</div></div><div class="panel"><h3>คะแนนเกม</h3><div id="adminGameScoresPanel">${adminLoadingHtml('คะแนน')}</div></div>`)}
+        ${pane('tools', adminToolsPanelHtml())}
+        ${pane('system', sheetConnectionPanelHtml() + `<div id="adminErrorConsolePanel">${adminLoadingHtml('บันทึกข้อผิดพลาด')}</div>`)}`;
+    }
+
+    function setAdminTab(tab) {
+      const target = document.querySelector('[data-admin-pane="' + tab + '"]');
+      if (!target) return;
+      state.adminTab = tab;
+      document.querySelectorAll('[data-admin-tab]').forEach(el => { const active = el.dataset.adminTab === tab; el.classList.toggle('active',active); el.setAttribute('aria-pressed',String(active)); });
+      document.querySelectorAll('[data-admin-pane]').forEach(el => el.hidden = el.dataset.adminPane !== tab);
+      if (tab === 'members' && state.currentUser?.Role === 'admin') gpPendingMembers();
     }
 
     function adminErrorConsoleHtml() {

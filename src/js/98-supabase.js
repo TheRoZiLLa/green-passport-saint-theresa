@@ -95,7 +95,7 @@ async function gpChatHistory(room) {
   const { messages } = await gpCall('chatHistory', { roomId: room });
   await Promise.all(messages.map(async m => { if (m.ImagePath) m.ImageLink = await gpSignedUrl('gp-chat', m.ImagePath); }));
   state.data.chatMessages = state.data.chatMessages.filter(m => m.ChatRoomID !== room).concat(messages.map(normalizeRow));
-  if (state.active === 'chat' && state.chatRoom === room) renderChat();
+  if (state.active === 'chat' && state.chatRoom === room) refreshChatMessages();
 }
 
 function gpStopChat() {
@@ -239,7 +239,8 @@ async function logout() {
   state.chatIdentity = {}; state.active = 'home'; state.authMode = 'login'; renderAuth();
 }
 
-async function reloadData(silent = false) {
+async function reloadData(silent = false, expectedPage = null) {
+  const requester = state.currentUser?.UserID;
   const result = await gpCall('getBootstrapData');
   await Promise.all(result.wasteRecords.map(async r => {
     if (r.EvidencePaths?.length) r.EvidenceFolderLink = await gpSignedUrl('gp-evidence', r.EvidencePaths[0]);
@@ -247,9 +248,10 @@ async function reloadData(silent = false) {
   if (!['teacher', 'admin'].includes(state.currentUser?.Role)) result.chatMessages = state.data.chatMessages || [];
   else await Promise.all(result.chatMessages.map(async m => { if (m.ImagePath) m.ImageLink = await gpSignedUrl('gp-chat', m.ImagePath); }));
   result.chatRooms = defaultChatRooms().filter(room => room.ChatRoomID === 'CR-MISSION-01' || ['teacher', 'admin'].includes(state.currentUser?.Role) || (room.ChatRoomID === 'CR-CLASS-01' && state.currentUser?.ClassName === 'ม.1/1'));
+  if (state.currentUser?.UserID !== requester) return;
   hydrateData(result);
   if (!silent) alert('โหลดข้อมูลจาก Supabase เรียบร้อย');
-  renderAll();
+  if (!expectedPage || state.active === expectedPage) renderAll();
 }
 
 // Do not restore account data or queue legacy writes.
@@ -268,13 +270,7 @@ function renderAdmin() {
   state.adminPIN = staff ? 'staff-session' : '';
   document.getElementById('admin').innerHTML = staff ? adminPanelHtml() : '<div class="panel"><h3>เฉพาะครูและผู้ดูแลระบบ</h3></div>';
   if (staff) scheduleAdminDeferredRender();
-  if (state.currentUser?.Role === 'admin') {
-    const panel = document.createElement('div');
-    panel.className = 'panel';
-    panel.innerHTML = '<h3>คำขอสมัครสมาชิก</h3><div id="gpPendingMembers">กำลังโหลด...</div>';
-    document.getElementById('admin').prepend(panel);
-    gpPendingMembers();
-  }
+  if (state.currentUser?.Role === 'admin' && state.adminTab === 'members') gpPendingMembers();
 }
 function adminLogin() { renderAdmin(); }
 
