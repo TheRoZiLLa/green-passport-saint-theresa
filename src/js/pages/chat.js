@@ -34,16 +34,17 @@
       const latest = latestRoomMessage(room.ChatRoomID);
       const count = (state.data.chatMessages || []).filter((message) => message.ChatRoomID === room.ChatRoomID && !statusIsHidden(message.ModerationStatus)).length;
       const tone = chatRoomTone(room);
-      const preview = latest ? `${safeDisplayName(latest.DisplayName)}: ${latest.MessageText || (latest.ImageLink ? 'ส่งรูปภาพ' : 'ข้อความใหม่')}` : room.Description || 'ยังไม่มีข้อความ';
+      const preview = latest
+        ? `${isOwnMessage(latest) ? 'คุณ' : safeDisplayName(latest.DisplayName)}: ${latest.MessageText || (latest.ImageLink ? 'ส่งรูปภาพ' : 'ข้อความใหม่')}`
+        : (room.Description || 'ยังไม่มีข้อความ');
       return `
         <button class="chat-room-row ${room.ChatRoomID === activeRoom.ChatRoomID ? 'active' : ''}" type="button" onclick="setChatRoom('${escapeAttr(room.ChatRoomID)}')">
           <span class="room-avatar ${tone}">${escapeHtml(avatarText(room.ChatRoomName || 'GC'))}</span>
-          <span style="min-width:0">
+          <span class="chat-room-copy">
             <span class="room-title">${escapeHtml(room.ChatRoomName)}</span>
             <span class="room-preview">${escapeHtml(preview)}</span>
-            <span class="room-meta">${escapeHtml(room.ChatRoomType || '')} · ${chatRoomMembers(room.ChatRoomID).length || 1} สมาชิก</span>
           </span>
-          <span style="text-align:right">
+          <span class="chat-room-meta">
             <span class="room-time">${latest ? escapeHtml(chatTimeLabel(latest.Timestamp)) : ''}</span>
             ${count ? `<span class="room-unread">${count > 99 ? '99+' : count}</span>` : ''}
           </span>
@@ -103,15 +104,20 @@
 
     function chatMessageStreamHtml(messages) {
       let lastDay = '';
-      let lastSender = '';
-      return messages.map((message) => {
+      return messages.map((message, index) => {
         const day = chatDayKey(message.Timestamp);
         const sender = message.UserID || message.DisplayName || '';
+        const prev = messages[index - 1];
+        const next = messages[index + 1];
+        const prevSame = prev && !isSystemMessage(prev) && chatDayKey(prev.Timestamp) === day && (prev.UserID || prev.DisplayName || '') === sender;
+        const nextSame = next && !isSystemMessage(next) && chatDayKey(next.Timestamp) === day && (next.UserID || next.DisplayName || '') === sender;
         const divider = day !== lastDay ? `<div class="chat-date-divider"><span>${escapeHtml(chatDateLabel(message.Timestamp))}</span></div>` : '';
-        const compact = day === lastDay && sender === lastSender && !isSystemMessage(message);
         lastDay = day;
-        lastSender = sender;
-        return divider + chatMessageHtml(message, { compact });
+        return divider + chatMessageHtml(message, {
+          compact: prevSame && !isSystemMessage(message),
+          groupFirst: !prevSame,
+          groupLast: !nextSame,
+        });
       }).join('');
     }
 
@@ -123,109 +129,129 @@
       const own = isOwnMessage(message);
       const teacher = isTeacherMessage(message);
       const reactions = state.chatReactions?.[id] || {};
+      const reactionEntries = Object.entries(reactions).filter(([, count]) => Number(count) > 0);
       const reply = message.ReplyToMessageID ? (state.data.chatMessages || []).find((item) => item.MessageID === message.ReplyToMessageID) : null;
       const image = String(message.ImageLink || '').trim();
-      const classes = ['chat-message', own ? 'own' : '', teacher ? 'teacher' : '', options.compact ? 'compact' : '', message.MessageType === 'sticker' ? 'sticker' : ''].filter(Boolean).join(' ');
+      const onlyImage = image && !String(message.MessageText || '').trim();
+      const classes = [
+        'chat-message',
+        own ? 'own' : '',
+        teacher ? 'teacher' : '',
+        options.compact ? 'compact' : '',
+        options.groupFirst ? 'group-first' : '',
+        options.groupLast ? 'group-last' : '',
+        message.MessageType === 'sticker' ? 'sticker' : '',
+        onlyImage ? 'image-only' : '',
+      ].filter(Boolean).join(' ');
       return `
-        <div class="${classes}">
-          <button class="chat-avatar ${teacher ? 'teacher' : chatRoomTone({ ChatRoomID: message.ChatRoomID })}" type="button" onclick="showChatProfile(${escapeAttr(jsString(message.UserID || message.DisplayName))})">${escapeHtml(avatarText(message.DisplayName))}</button>
+        <div class="${classes}" data-msg-id="${escapeAttr(id)}">
+          ${own ? '' : `<button class="chat-avatar ${teacher ? 'teacher' : chatRoomTone({ ChatRoomID: message.ChatRoomID })}" type="button" onclick="showChatProfile(${escapeAttr(jsString(message.UserID || message.DisplayName))})" title="${escapeAttr(safeDisplayName(message.DisplayName))}">${escapeHtml(avatarText(message.DisplayName))}</button>`}
           <div class="chat-stack">
-            <div class="chat-sender">
-              <button class="chat-action" type="button" onclick="showChatProfile(${escapeAttr(jsString(message.UserID || message.DisplayName))})">${escapeHtml(safeDisplayName(message.DisplayName))}</button>
-              ${teacher ? '<span class="teacher-badge">ครูผู้ดูแล</span>' : `<span>${escapeHtml(message.ClassName || '')}</span>`}
+            ${(!own && options.groupFirst) ? `
+              <div class="chat-sender">
+                <button class="chat-sender-btn" type="button" onclick="showChatProfile(${escapeAttr(jsString(message.UserID || message.DisplayName))})">${escapeHtml(safeDisplayName(message.DisplayName))}</button>
+                ${teacher ? '<span class="teacher-badge">ครูผู้ดูแล</span>' : (message.ClassName ? `<span>${escapeHtml(message.ClassName)}</span>` : '')}
+              </div>` : ''}
+            <div class="chat-bubble-row">
+              <div class="chat-bubble ${reported ? 'reported' : ''}" ondblclick="reactToMessage(${arg}, '💚')" onclick="toggleMobileChatActions(this)">
+                ${truthy(message.IsPinned) ? '<span class="badge earned chat-pin-tag">ปักหมุด</span>' : ''}
+                ${reported ? '<span class="status bad chat-pin-tag">ถูกรายงาน</span>' : ''}
+                ${reply ? `<div class="chat-quote"><strong>${escapeHtml(safeDisplayName(reply.DisplayName))}</strong><span>${escapeHtml(String(reply.MessageText || 'รูปภาพ').slice(0, 80))}</span></div>` : ''}
+                ${message.MessageText ? `<div class="chat-text">${escapeHtml(message.MessageText)}</div>` : ''}
+                ${image ? `<img class="chat-image" src="${escapeAttr(image)}" alt="รูปภาพที่แชร์ใน Green Chat" onclick="event.stopPropagation();openChatImage('${escapeAttr(image)}')" onerror="this.style.display='none'">` : ''}
+                ${reactionEntries.length ? `<div class="chat-reactions">${reactionEntries.map(([emoji, count]) => `<button class="chat-reaction" type="button" onclick="event.stopPropagation();reactToMessage(${arg}, '${escapeAttr(emoji)}')">${emoji}${count > 1 ? ` <span>${count}</span>` : ''}</button>`).join('')}</div>` : ''}
+              </div>
+              <div class="chat-actions" role="toolbar" aria-label="ตัวเลือกข้อความ">
+                ${['💚','👍','😂','😮'].map((emoji) => `<button class="chat-action-emoji" type="button" onclick="event.stopPropagation();reactToMessage(${arg}, '${emoji}')" title="ส่ง ${emoji}">${emoji}</button>`).join('')}
+                <button class="chat-action" type="button" onclick="event.stopPropagation();replyToChatMessage(${arg})" title="ตอบกลับ">↩</button>
+                ${own ? '' : `<button class="chat-action" type="button" onclick="event.stopPropagation();reportChatMessage(${arg})" title="รายงานข้อความ">⚑</button>`}
+              </div>
             </div>
-            <div class="chat-bubble ${reported ? 'reported' : ''}">
-              ${truthy(message.IsPinned) ? '<span class="badge earned">ปักหมุด</span>' : ''}
-              ${reported ? '<span class="status bad">ถูกรายงาน</span>' : ''}
-              ${reply ? `<div class="chat-quote">${escapeHtml(safeDisplayName(reply.DisplayName))}: ${escapeHtml(String(reply.MessageText || 'รูปภาพ').slice(0, 80))}</div>` : ''}
-              ${message.MessageText ? `<div>${escapeHtml(message.MessageText)}</div>` : ''}
-              ${image ? `<img class="chat-image" src="${escapeAttr(image)}" alt="รูปภาพที่แชร์ใน Green Chat" onclick="openChatImage('${escapeAttr(image)}')" onerror="this.style.display='none'">` : ''}
-            </div>
-            <div class="chat-time">${escapeHtml(chatTimeLabel(message.Timestamp))} ${own ? 'อ่านแล้ว' : ''}</div>
-            <div class="chat-reactions">
-              ${Object.entries(reactions).map(([emoji, count]) => `<button class="chat-reaction" type="button" onclick="reactToMessage(${arg}, '${escapeAttr(emoji)}')">${emoji} ${count}</button>`).join('')}
-            </div>
-            <div class="chat-actions">
-              ${['💚','👍','⭐','🍃'].map((emoji) => `<button class="chat-action" type="button" onclick="reactToMessage(${arg}, '${emoji}')">${emoji}</button>`).join('')}
-              <button class="chat-action" type="button" onclick="replyToChatMessage(${arg})">ตอบกลับ</button>
-              <button class="chat-action" type="button" onclick="reportChatMessage(${arg})">รายงาน</button>
-            </div>
+            ${options.groupLast ? `<div class="chat-time">${escapeHtml(chatTimeLabel(message.Timestamp))}${own ? ' · ส่งแล้ว' : ''}</div>` : ''}
           </div>
         </div>`;
     }
 
     function renderChat() {
       const rooms = ensureChatRoom();
+      const query = String(state.chatSearch || '').trim().toLowerCase();
+      const filteredRooms = query
+        ? rooms.filter(r => `${r.ChatRoomName || ''} ${r.ChatRoomType || ''} ${r.Description || ''}`.toLowerCase().includes(query))
+        : rooms;
       const room = rooms.find((item) => item.ChatRoomID === state.chatRoom) || rooms[0] || {};
       const messages = (state.data.chatMessages || [])
         .filter((message) => message.ChatRoomID === room.ChatRoomID && !statusIsHidden(message.ModerationStatus))
         .sort((a, b) => String(a.Timestamp || '').localeCompare(String(b.Timestamp || '')));
       const members = chatRoomMembers(room.ChatRoomID);
-      const mediaCount = messages.filter((message) => String(message.ImageLink || '').trim()).length;
-      const identity = state.chatIdentity || {};
       const reply = state.replyToMessageID ? messages.find((message) => message.MessageID === state.replyToMessageID) : null;
+      const mobileList = state.chatMobileView === 'list';
+
       document.getElementById('chat').innerHTML = `
-        <div class="chat-layout">
+        <div class="chat-layout ${mobileList ? 'is-mobile-list' : 'is-mobile-thread'}">
           <aside class="chat-sidebar">
             <div class="chat-sidebar-head">
-              <h3>Green Chat</h3>
-              <p>เลือกห้องสนทนา แชทอย่างสุภาพ และไม่เปิดเผยข้อมูลส่วนตัว</p>
+              <div class="chat-sidebar-title-row">
+                <h3>แชท</h3>
+                <button class="chat-icon-btn" type="button" onclick="askTeacherShortcut()" title="ทักหาครู">👩‍🏫</button>
+              </div>
+              <label class="chat-search-box">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+                <input type="search" id="chatRoomSearch" placeholder="ค้นหาห้องแชท..." value="${escapeAttr(state.chatSearch || '')}" oninput="filterChatRooms(this.value)">
+              </label>
             </div>
-            <div class="chat-room-list">
-              ${rooms.map((item) => chatRoomRowHtml(item, room)).join('')}
+            <div class="chat-room-list" id="chatRoomList">
+              ${filteredRooms.length ? filteredRooms.map((item) => chatRoomRowHtml(item, room)).join('') : '<p class="chat-room-empty">ไม่พบห้องแชทที่ค้นหา</p>'}
             </div>
-            <div class="chat-room-safe">พื้นที่สนทนาสำหรับโรงเรียน ครูสามารถตรวจข้อความ รายงาน และซ่อนได้เมื่อจำเป็น</div>
+            <div class="chat-room-safe">พื้นที่สนทนาปลอดภัยสำหรับโรงเรียน · <button type="button" class="chat-link-inline" onclick="showChatRules()">กติกา</button></div>
           </aside>
           <section class="chat-shell">
             <header class="chat-header">
               <div class="chat-header-main">
-                <button class="chat-icon-btn" type="button" onclick="showPage('friends')" title="กลับไปดูเพื่อน">‹</button>
+                <button class="chat-icon-btn chat-mobile-back" type="button" onclick="showChatRoomList()" title="กลับไปหน้ารายการแชท" aria-label="กลับไปหน้ารายการแชท">‹</button>
                 <div class="room-avatar ${chatRoomTone(room)}">${escapeHtml(avatarText(room.ChatRoomName || 'GC'))}</div>
-                <div style="min-width:0">
+                <div class="chat-header-title">
                   <span class="chat-line-title">${escapeHtml(room.ChatRoomName || 'Green Chat')}</span>
-                  <span class="chat-line-sub">${escapeHtml(room.ChatRoomType || 'ห้องสนทนา')} · ${members.length || 1} สมาชิก · ผู้ดูแล ${escapeHtml(room.TeacherModerator || 'ครูผู้ดูแล')}</span>
+                  <span class="chat-line-sub">${members.length || 1} สมาชิก · ${escapeHtml(room.TeacherModerator || 'ครูผู้ดูแล')}</span>
                 </div>
               </div>
               <div class="chat-toolbar">
-                <button class="chat-icon-btn" type="button" onclick="showChatMembers()" title="ดูสมาชิก">👥</button>
-                <button class="chat-icon-btn" type="button" onclick="showChatMedia()" title="ดูรูปภาพ">🖼</button>
-                <button class="chat-icon-btn" type="button" onclick="showChatRules()" title="กติกา">ⓘ</button>
+                <button class="chat-icon-btn" type="button" onclick="showChatMembers()" title="สมาชิกในห้อง">👥</button>
+                <button class="chat-icon-btn" type="button" onclick="showChatMedia()" title="รูปภาพที่แชร์">🖼</button>
+                <button class="chat-icon-btn" type="button" onclick="showChatInfoModal()" title="ข้อมูลห้องและกติกา">ⓘ</button>
               </div>
             </header>
             <div class="chat-window" id="chatWindow">
-              ${truthy(messages.find((message) => truthy(message.IsPinned))?.IsPinned) ? `<div class="chat-system">มีข้อความปักหมุดในห้องนี้ กรุณาอ่านประกาศจากครูผู้ดูแล</div>` : ''}
-              ${messages.length ? chatMessageStreamHtml(messages) : '<div class="chat-system">ยังไม่มีข้อความในห้องนี้ เริ่มทักทายด้วยเรื่องลดขยะได้เลย</div>'}
+              ${truthy(messages.find((message) => truthy(message.IsPinned))?.IsPinned) ? `<div class="chat-system">📌 มีข้อความปักหมุดในห้องนี้</div>` : ''}
+              ${messages.length ? chatMessageStreamHtml(messages) : '<div class="chat-system">ยังไม่มีข้อความในห้องนี้ เริ่มทักทายเพื่อน ๆ ได้เลย 👋</div>'}
             </div>
             <form class="chat-composer" id="chatForm" onsubmit="sendChatMessage(event)">
-              <div class="chat-identity-row">
-                <input name="DisplayName" required maxlength="40" placeholder="ชื่อเล่น" value="${escapeAttr(identity.DisplayName || '')}" readonly>
-                <input name="ClassName" maxlength="20" placeholder="ชั้น/ห้อง" value="${escapeAttr(identity.ClassName || '')}" readonly>
-                <input name="UserID" maxlength="30" placeholder="รหัสย่อ เช่น ST***01" value="${escapeAttr(identity.UserID || '')}" readonly>
-              </div>
               <div class="chat-reply-bar" id="chatReplyBar" ${reply ? '' : 'hidden'}>
-                <span>ตอบกลับ ${reply ? escapeHtml(safeDisplayName(reply.DisplayName)) : ''}: ${reply ? escapeHtml(String(reply.MessageText || 'รูปภาพ').slice(0, 90)) : ''}</span>
-                <button class="chat-action" type="button" onclick="clearChatReply()">ยกเลิก</button>
+                <div class="chat-reply-bar-copy">
+                  <small>กำลังตอบกลับ ${reply ? escapeHtml(safeDisplayName(reply.DisplayName)) : ''}</small>
+                  <span>${reply ? escapeHtml(String(reply.MessageText || 'รูปภาพ').slice(0, 90)) : ''}</span>
+                </div>
+                <button class="chat-icon-btn chat-reply-close" type="button" onclick="clearChatReply()" aria-label="ยกเลิกการตอบกลับ">×</button>
+              </div>
+              <div class="chat-image-preview" id="chatImagePreview" hidden>
+                <img id="chatImagePreviewThumb" alt="ตัวอย่างรูปที่จะส่ง">
+                <span id="chatImagePreviewName"></span>
+                <button type="button" class="chat-icon-btn chat-reply-close" onclick="clearChatImage()" aria-label="ลบรูปที่เลือก">×</button>
               </div>
               <div class="chat-emoji-tray" id="chatEmojiTray" hidden>
-                ${['🌱','♻️','💚','🍃','🌍','🏡','🗑️','📷','⭐','🏆'].map((emoji) => `<button class="chat-reaction" type="button" onclick="insertChatEmoji('${emoji}')">${emoji}</button>`).join('')}
+                <div class="chat-tray-section">
+                  ${['🌱','♻️','💚','🍃','🌍','🏡','🗑️','📷','⭐','🏆','👍','😂','😮','🙌'].map((emoji) => `<button class="chat-reaction" type="button" onclick="insertChatEmoji('${emoji}')">${emoji}</button>`).join('')}
+                </div>
+                <div class="chat-tray-stickers">
+                  ${['เก่งมาก 💚','สู้ ๆ 🌱','ไอเดียดีมาก 🍃','สุดยอด ⭐','ช่วยโลกได้อีกก้าว 🌍'].map((text) => `<button class="chat-sticker" type="button" onclick="sendSticker(${escapeAttr(jsString(text))})">${escapeHtml(text)}</button>`).join('')}
+                </div>
               </div>
-              <div class="chat-sticker-tray" id="chatStickerTray" hidden>
-                ${['เก่งมาก 💚','สู้ ๆ 🌱','ไอเดียดีมาก 🍃','สุดยอด ⭐','ช่วยโลกได้อีกก้าว 🌍'].map((text) => `<button class="chat-sticker" type="button" onclick="sendSticker(${escapeAttr(jsString(text))})">${escapeHtml(text)}</button>`).join('')}
-              </div>
-              <input id="chatImageFile" type="file" accept="image/*" hidden onchange="showChatImageName()">
-              <div class="chat-compose-row">
-                <button class="chat-icon-btn" type="button" onclick="toggleChatTray('chatEmojiTray')" title="อิโมจิ">☺</button>
-                <button class="chat-icon-btn" type="button" onclick="document.getElementById('chatImageFile').click()" title="แนบรูป">📎</button>
-                <textarea id="chatMessageInput" name="MessageText" rows="1" maxlength="500" placeholder="พิมพ์ข้อความถึงเพื่อน ๆ..." onkeydown="chatTextareaKey(event)"></textarea>
-                <button class="chat-send-btn" type="submit" title="ส่งข้อความ">➤</button>
-              </div>
-              <div class="btn-row" style="justify-content:space-between">
-                <span class="room-meta" id="chatImageName">กด Enter เพื่อส่งข้อความ หรือ Shift+Enter เพื่อขึ้นบรรทัดใหม่</span>
-                <span>
-                  <button class="chat-action" type="button" onclick="toggleChatTray('chatStickerTray')">สติกเกอร์</button>
-                  <button class="chat-action" type="button" onclick="askTeacherShortcut()">ถามครู</button>
-                  <button class="chat-action" type="button" onclick="toggleChatNotifications()">แจ้งเตือน: เปิด</button>
-                </span>
+              <input id="chatImageFile" type="file" accept="image/jpeg,image/png,image/webp" hidden onchange="showChatImageName()">
+              <div class="chat-compose-pill">
+                <button class="chat-pill-btn" type="button" onclick="document.getElementById('chatImageFile').click()" title="ส่งรูปภาพ">📷</button>
+                <button class="chat-pill-btn" type="button" onclick="toggleChatTray('chatEmojiTray')" title="อิโมจิและสติกเกอร์">☺</button>
+                <textarea id="chatMessageInput" name="MessageText" rows="1" maxlength="500" placeholder="ส่งข้อความ..." oninput="updateChatComposerState(this)" onkeydown="chatTextareaKey(event)"></textarea>
+                <button class="chat-quick-heart" id="chatQuickHeart" type="button" onclick="sendSticker('💚')" title="ส่งหัวใจสีเขียว">💚</button>
+                <button class="chat-send-btn" id="chatSendBtn" type="submit" title="ส่งข้อความ" hidden>ส่ง</button>
               </div>
             </form>
           </section>
@@ -236,19 +262,61 @@
       });
     }
 
+    function updateChatComposerState(textarea) {
+      if (textarea) {
+        textarea.style.height = 'auto';
+        textarea.style.height = `${Math.min(textarea.scrollHeight, 110)}px`;
+      }
+      const hasText = !!String(document.getElementById('chatMessageInput')?.value || '').trim();
+      const hasFile = !!(document.getElementById('chatImageFile')?.files?.length);
+      const sendBtn = document.getElementById('chatSendBtn');
+      const heartBtn = document.getElementById('chatQuickHeart');
+      if (sendBtn && heartBtn) {
+        sendBtn.hidden = !(hasText || hasFile);
+        heartBtn.hidden = (hasText || hasFile);
+      }
+    }
+
+    function filterChatRooms(value) {
+      state.chatSearch = value;
+      const list = document.getElementById('chatRoomList');
+      if (!list) return;
+      const rooms = ensureChatRoom();
+      const room = rooms.find((item) => item.ChatRoomID === state.chatRoom) || rooms[0] || {};
+      const query = String(value || '').trim().toLowerCase();
+      const filtered = query
+        ? rooms.filter(r => `${r.ChatRoomName || ''} ${r.ChatRoomType || ''} ${r.Description || ''}`.toLowerCase().includes(query))
+        : rooms;
+      list.innerHTML = filtered.length ? filtered.map((item) => chatRoomRowHtml(item, room)).join('') : '<p class="chat-room-empty">ไม่พบห้องแชทที่ค้นหา</p>';
+    }
+
+    function showChatRoomList() {
+      state.chatMobileView = 'list';
+      renderChat();
+    }
+
+    function toggleMobileChatActions(bubble) {
+      const msg = bubble?.closest('.chat-message');
+      if (!msg) return;
+      const wasOpen = msg.classList.contains('show-actions');
+      document.querySelectorAll('.chat-message.show-actions').forEach(el => el.classList.remove('show-actions'));
+      if (!wasOpen) msg.classList.add('show-actions');
+    }
+
     function refreshChatMessages() {
       const windowEl = document.getElementById('chatWindow');
       if (!windowEl) { renderChat(); return; }
       const messages = (state.data.chatMessages || []).filter(m => m.ChatRoomID === state.chatRoom && !statusIsHidden(m.ModerationStatus)).sort((a,b)=>String(a.Timestamp||'').localeCompare(String(b.Timestamp||'')));
       const nearBottom = windowEl.scrollHeight - windowEl.clientHeight - windowEl.scrollTop < 100;
       const previousTop = windowEl.scrollTop;
-      windowEl.innerHTML = messages.length ? `${messages.some(m=>truthy(m.IsPinned)) ? '<div class="chat-system">มีข้อความปักหมุดในห้องนี้</div>' : ''}${chatMessageStreamHtml(messages)}` : '<div class="chat-system">ยังไม่มีข้อความ ลองทักทายเพื่อน ๆ ได้เลย</div>';
+      windowEl.innerHTML = messages.length ? `${messages.some(m=>truthy(m.IsPinned)) ? '<div class="chat-system">📌 มีข้อความปักหมุดในห้องนี้</div>' : ''}${chatMessageStreamHtml(messages)}` : '<div class="chat-system">ยังไม่มีข้อความ ลองทักทายเพื่อน ๆ ได้เลย 👋</div>';
       windowEl.scrollTop = nearBottom ? windowEl.scrollHeight : previousTop;
     }
 
     function setChatRoom(roomId) {
       state.chatRoom = roomId;
       state.replyToMessageID = '';
+      state.chatMobileView = 'thread';
       if (firebaseDb) {
         subscribeToFirebaseChat(roomId);
       }
@@ -264,6 +332,7 @@
       const input = document.getElementById('chatMessageInput');
       if (!input) return;
       input.value = `${input.value || ''}${emoji}`;
+      updateChatComposerState(input);
       input.focus();
     }
 
@@ -276,8 +345,27 @@
 
     function showChatImageName() {
       const file = document.getElementById('chatImageFile')?.files?.[0];
-      const label = document.getElementById('chatImageName');
-      if (label) label.textContent = file ? `แนบรูป: ${file.name}` : 'กด Enter เพื่อส่งข้อความ หรือ Shift+Enter เพื่อขึ้นบรรทัดใหม่';
+      const preview = document.getElementById('chatImagePreview');
+      const thumb = document.getElementById('chatImagePreviewThumb');
+      const name = document.getElementById('chatImagePreviewName');
+      if (file && preview && thumb && name) {
+        name.textContent = file.name;
+        const reader = new FileReader();
+        reader.onload = () => { thumb.src = reader.result; };
+        reader.readAsDataURL(file);
+        preview.hidden = false;
+      } else if (preview) {
+        preview.hidden = true;
+      }
+      updateChatComposerState(document.getElementById('chatMessageInput'));
+    }
+
+    function clearChatImage() {
+      const fileInput = document.getElementById('chatImageFile');
+      if (fileInput) fileInput.value = '';
+      const preview = document.getElementById('chatImagePreview');
+      if (preview) preview.hidden = true;
+      updateChatComposerState(document.getElementById('chatMessageInput'));
     }
 
     function replyToChatMessage(messageId) {
@@ -296,42 +384,83 @@
       state.chatReactions[messageId] ||= {};
       state.chatReactions[messageId][emoji] = Number(state.chatReactions[messageId][emoji] || 0) + 1;
       localStorage.setItem('greenPassportChatReactions', JSON.stringify(state.chatReactions));
-      renderChat();
+      refreshChatMessages();
+    }
+
+    function openChatDialog(title, bodyHtml) {
+      let dialog = document.getElementById('gpChatModal');
+      if (!dialog) {
+        dialog = document.createElement('dialog');
+        dialog.id = 'gpChatModal';
+        dialog.className = 'workspace-menu-dialog chat-modal-dialog';
+        document.body.append(dialog);
+      }
+      dialog.innerHTML = `<header><div><small>GREEN CHAT</small><h2>${escapeHtml(title)}</h2></div><button type="button" onclick="document.getElementById('gpChatModal').close()" aria-label="ปิด">×</button></header><div class="chat-modal-body">${bodyHtml}</div>`;
+      if (!dialog.open) dialog.showModal();
     }
 
     function openChatImage(src) {
-      window.open(src, '_blank', 'noopener');
+      openChatDialog('รูปภาพในแชท', `<img class="chat-modal-image" src="${escapeAttr(src)}" alt="รูปภาพใน Green Chat">`);
     }
 
     function showChatMembers() {
       const members = chatRoomMembers(state.chatRoom);
-      alert(members.length ? members.map((member) => `${safeDisplayName(member.DisplayName)} ${member.ClassName || ''}`).join('\n') : 'ยังไม่มีรายชื่อสมาชิกในห้องนี้');
+      const html = members.length
+        ? `<div class="chat-modal-list">${members.map((member) => `<div class="chat-modal-item"><span class="chat-avatar">${escapeHtml(avatarText(member.DisplayName))}</span><div><strong>${escapeHtml(safeDisplayName(member.DisplayName))}</strong><small>${escapeHtml(member.ClassName || 'สมาชิก')}</small></div></div>`).join('')}</div>`
+        : '<p class="workspace-hint">ยังไม่มีรายชื่อสมาชิกในห้องนี้</p>';
+      openChatDialog(`สมาชิกในห้อง (${members.length})`, html);
     }
 
     function showChatMedia() {
-      const images = (state.data.chatMessages || []).filter((message) => message.ChatRoomID === state.chatRoom && message.ImageLink);
-      alert(images.length ? images.map((message) => `${safeDisplayName(message.DisplayName)} - ${chatTimeLabel(message.Timestamp)}`).join('\n') : 'ยังไม่มีรูปภาพที่แชร์ในห้องนี้');
+      const images = (state.data.chatMessages || []).filter((message) => message.ChatRoomID === state.chatRoom && message.ImageLink && !statusIsHidden(message.ModerationStatus));
+      const html = images.length
+        ? `<div class="chat-media-grid">${images.map((message) => `<button type="button" class="chat-media-thumb" onclick="openChatImage('${escapeAttr(message.ImageLink)}')"><img src="${escapeAttr(message.ImageLink)}" alt="${escapeAttr(safeDisplayName(message.DisplayName))}"><span>${escapeHtml(safeDisplayName(message.DisplayName))}</span></button>`).join('')}</div>`
+        : '<p class="workspace-hint">ยังไม่มีรูปภาพที่แชร์ในห้องนี้</p>';
+      openChatDialog(`รูปภาพที่แชร์ (${images.length})`, html);
     }
 
     function showChatRules() {
-      alert('กติกา Green Chat\n1. ใช้ถ้อยคำสุภาพ\n2. ไม่เปิดเผยเบอร์โทร ที่อยู่ หรือบัญชีส่วนตัว\n3. คุยเรื่องการลดขยะและภารกิจสีเขียว\n4. รายงานข้อความที่ไม่เหมาะสมให้ครูตรวจ');
+      openChatDialog('กติกา Green Chat', `<ol class="chat-rules-list"><li>ใช้ถ้อยคำสุภาพและให้กำลังใจกัน</li><li>ไม่เปิดเผยเบอร์โทร ที่อยู่ หรือบัญชีส่วนตัว</li><li>พูดคุยเรื่องการลดขยะและภารกิจสีเขียว</li><li>กดรายงานข้อความที่ไม่เหมาะสมให้ครูตรวจสอบได้ทันที</li></ol>`);
+    }
+
+    function showChatInfoModal() {
+      const rooms = ensureChatRoom();
+      const room = rooms.find((item) => item.ChatRoomID === state.chatRoom) || rooms[0] || {};
+      const notifOff = localStorage.getItem('greenPassportChatNotifications') === 'off';
+      openChatDialog(room.ChatRoomName || 'ข้อมูลห้องแชท', `
+        <p class="workspace-hint" style="margin-bottom:12px">${escapeHtml(room.Description || 'ห้องสนทนา Green Passport')}</p>
+        <div class="chat-info-actions">
+          <button type="button" class="btn ghost" onclick="showChatMembers()">ดูสมาชิกในห้อง</button>
+          <button type="button" class="btn ghost" onclick="showChatMedia()">ดูรูปภาพที่แชร์</button>
+          <button type="button" class="btn ghost" onclick="showChatRules()">อ่านกติกา</button>
+          <button type="button" class="btn ghost" onclick="toggleChatNotifications();showChatInfoModal()">แจ้งเตือน: ${notifOff ? 'ปิด' : 'เปิด'}</button>
+        </div>`);
     }
 
     function showChatProfile(profileId) {
       const profile = allProfiles().find((item) => item.UserID === profileId || item.DisplayName === profileId);
       if (!profile) {
-        alert('ยังไม่มีข้อมูลโปรไฟล์ของผู้ใช้นี้');
+        openChatDialog('โปรไฟล์สมาชิก', '<p class="workspace-hint">ยังไม่มีข้อมูลโปรไฟล์ของผู้ใช้นี้</p>');
         return;
       }
-      alert(`${safeDisplayName(profile.DisplayName)}\n${profile.ClassName || ''}\n${profile.CurrentLevel || ''}\nEXP ${profile.CurrentEXP || 0}\nBadge ${profile.TotalBadges || 0}`);
+      openChatDialog(safeDisplayName(profile.DisplayName), `
+        <div class="chat-modal-item" style="margin-bottom:12px">
+          <span class="chat-avatar">${escapeHtml(avatarText(profile.DisplayName))}</span>
+          <div><strong>${escapeHtml(safeDisplayName(profile.DisplayName))}</strong><small>${escapeHtml(profile.ClassName || 'สมาชิก')}</small></div>
+        </div>
+        <div class="workspace-mini-stat"><span>ระดับ</span><strong>${escapeHtml(profile.CurrentLevel || 'ต้นกล้า')}</strong></div>
+        <div class="workspace-mini-stat"><span>EXP สะสม</span><strong>${Number(profile.CurrentEXP || 0)}</strong></div>
+        <div class="workspace-mini-stat"><span>Badge</span><strong>${Number(profile.TotalBadges || 0)}</strong></div>`);
     }
 
     function askTeacherShortcut() {
       state.chatRoom = 'CR-TEACHER-01';
+      state.chatMobileView = 'thread';
       renderChat();
       const input = document.getElementById('chatMessageInput');
       if (input) {
         input.value = 'ครูครับ/ค่ะ ขอสอบถามเรื่อง ';
+        updateChatComposerState(input);
         input.focus();
       }
     }
@@ -340,7 +469,7 @@
       const key = 'greenPassportChatNotifications';
       const next = localStorage.getItem(key) === 'off' ? 'on' : 'off';
       localStorage.setItem(key, next);
-      alert(`ตั้งค่าการแจ้งเตือน Green Chat: ${next === 'on' ? 'เปิด' : 'ปิด'}`);
+      workspaceToast(`แจ้งเตือน Green Chat: ${next === 'on' ? 'เปิด' : 'ปิด'}`);
     }
 
     function moderateMessageText(text) {
@@ -391,9 +520,9 @@
     }
 
     async function sendSticker(text) {
-      const identity = state.chatIdentity || {};
+      const identity = currentUserIdentity();
       if (!identity.DisplayName) {
-        alert('กรุณากรอกชื่อที่แสดงก่อนส่งสติกเกอร์');
+        alert('กรุณาเข้าสู่ระบบก่อนส่งข้อความ');
         return;
       }
       const message = {
@@ -411,24 +540,20 @@
         ReportStatus: '',
         ModerationStatus: 'ปกติ',
       };
-      if (firebaseDb) {
-        try {
+      try {
+        if (firebaseDb) {
           await firebaseDb.ref(`chatMessages/${state.chatRoom}/${message.MessageID}`).set(message);
-        } catch (error) {
-          console.error("Firebase send sticker error:", error);
-        }
-      } else {
-        try {
+        } else {
           const result = await sheetApi('appendChatMessage', { message });
           state.data.chatMessages.push(normalizeRow(result.message || message));
-        } catch (error) {
-          state.data.chatMessages.push(normalizeRow(message));
-          queuePendingWrite('appendChatMessage', { message });
         }
+        state.replyToMessageID = '';
+        saveToLocalStorage();
+        renderChat();
+      } catch (error) {
+        console.warn('Send sticker failed', error);
+        alert(error.message || 'ส่งสติกเกอร์ไม่สำเร็จ กรุณาลองอีกครั้ง');
       }
-      state.replyToMessageID = '';
-      saveToLocalStorage();
-      renderChat();
     }
 
     async function reportChatMessage(messageId) {
