@@ -1,5 +1,5 @@
-    const SHEET_ID = '1G0rL3YSQexyiMp7vPu8DdOo2tUZk9xIhi1E1poaJqi4';
-    const SHEET_URL = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/edit`;
+    const SHEET_ID = '';
+    const SHEET_URL = '#';
     const SHEET_API_STORAGE_KEY = 'greenPassportSheetApiUrl';
     const LOCAL_DATA_KEY = 'greenPassportData';
     const LOCAL_QUEUE_KEY = 'greenPassportPendingWrites';
@@ -7,8 +7,7 @@
     const LOCAL_AUTH_USERS_KEY = 'greenPassportLocalUsers';
     const queryParams = new URLSearchParams(location.search);
     const siteConfig = window.GREEN_PASSPORT_CONFIG || {};
-    let sheetApiUrl = queryParams.get('api') || siteConfig.sheetApiUrl || localStorage.getItem(SHEET_API_STORAGE_KEY) || '';
-    if (queryParams.get('api')) localStorage.setItem(SHEET_API_STORAGE_KEY, sheetApiUrl);
+    let sheetApiUrl = '';
 
     // Global Firebase initialization and service references
     let firebaseApp = null;
@@ -16,17 +15,6 @@
     let firebaseFs = null;
     let firebaseDb = null;
 
-    if (siteConfig.firebase && siteConfig.firebase.apiKey) {
-      try {
-        firebaseApp = firebase.initializeApp(siteConfig.firebase);
-        firebaseAuth = firebase.auth();
-        firebaseFs = firebase.firestore();
-        firebaseDb = firebase.database();
-        console.log("Firebase initialized successfully");
-      } catch (e) {
-        console.error("Firebase initialization failed:", e);
-      }
-    }
     const pages = [
       ['home', 'หน้าแรก', 'home'],
       ['record', 'บันทึกข้อมูลขยะ', 'edit'],

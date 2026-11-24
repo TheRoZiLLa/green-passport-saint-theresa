@@ -1,0 +1,5 @@
+{
+  "buildCommand": "node tools/build-assets.js && node tools/build-static.js",
+  "outputDirectory": "dist",
+  "framework": null
+}

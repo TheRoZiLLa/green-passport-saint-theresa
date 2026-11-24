@@ -21,6 +21,7 @@ const jsFiles = [
   'pages/impact-dashboard.js',
   'pages/admin.js',
   '99-runtime.js',
+  '98-supabase.js',
 ];
 
 function readSource(file) {

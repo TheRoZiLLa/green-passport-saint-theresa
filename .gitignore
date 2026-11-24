@@ -1,1 +1,6 @@
 site.config.js
+dist/
+.env
+.env.*
+!.env.example
+.vercel/

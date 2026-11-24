@@ -1,0 +1,12 @@
+index.backup.html
+site.config.js
+Code.gs
+firebase.json
+database.rules.json
+firestore.rules
+supabase/
+dist/
+README.md
+PROJECT_STRUCTURE.md
+SUPABASE_MIGRATION.md
+.vscode/

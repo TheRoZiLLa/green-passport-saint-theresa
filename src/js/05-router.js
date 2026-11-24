@@ -63,6 +63,12 @@
         return;
       }
       state.active = page;
+      if (typeof gpStopChat === 'function' && page !== 'chat') gpStopChat();
+      if (page === 'chat' && typeof subscribeToFirebaseChat === 'function') {
+        ensureChatRoom();
+        subscribeToFirebaseChat(state.chatRoom);
+      }
+      if (['leaderboard', 'community', 'admin', 'dashboard'].includes(page) && typeof gpClient !== 'undefined' && gpClient) reloadData(true).catch(console.warn);
       document.body.classList.toggle('chat-active', page === 'chat');
       renderAll();
       window.scrollTo({ top: 0, behavior: 'smooth' });

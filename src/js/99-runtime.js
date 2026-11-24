@@ -29,5 +29,3 @@
       const text = String(id || '');
       return text.length <= 3 ? '***' : text.slice(0, 2) + '***' + text.slice(-2);
     }
-
-    init();
