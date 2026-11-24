@@ -2354,7 +2354,7 @@
       mobile.innerHTML = ['home','record','game','chat'].map(id => {
         const p = pages.find(item => item[0] === id);
         return `<button data-page="${id}" title="${escapeAttr(workspaceLabel(id))}">${icons[p[2]]}<span>${escapeHtml(workspaceMobileLabel(id))}</span></button>`;
-      }).join('') + `<button type="button" onclick="showWorkspaceMenu()" aria-label="เมนูทั้งหมด"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 6h14M5 12h14M5 18h14"/></svg><span>เมนู</span></button>`;
+      }).join('') + `<button type="button" data-workspace-menu onclick="showWorkspaceMenu()" aria-label="เมนูทั้งหมด" aria-haspopup="dialog"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 6h14M5 12h14M5 18h14"/></svg><span>เมนู</span></button>`;
       document.querySelectorAll('[data-page]').forEach((btn) => btn.addEventListener('click', () => btn.dataset.page === 'profile' ? showOwnProfile() : showPage(btn.dataset.page)));
     }
 
@@ -2460,7 +2460,13 @@
       if (carbonLabel) carbonLabel.textContent = isStaffUser() ? 'คาร์บอนในระบบ' : 'คาร์บอนของคุณ';
       renderAuthUserChip();
       document.querySelectorAll('.section').forEach((s) => s.classList.toggle('active', s.id === state.active));
-      document.querySelectorAll('[data-page]').forEach((b) => b.classList.toggle('active', b.dataset.page === state.active));
+      document.querySelectorAll('[data-page]').forEach(b => {
+        const active = b.dataset.page === state.active;
+        b.classList.toggle('active', active);
+        if (active) b.setAttribute('aria-current', 'page');
+        else b.removeAttribute('aria-current');
+      });
+      document.querySelector('[data-workspace-menu]')?.classList.toggle('active', !['home','record','game','chat'].includes(state.active));
       const renderers = {
         home: renderHome,
         record: renderRecord,

@@ -21,9 +21,9 @@ body:not(.auth-locked) {
 }
 body:not(.auth-locked) .app { grid-template-columns: 244px minmax(0, 1fr); min-height: 100dvh; }
 .app > aside {
-  background: #fff;
-  color: var(--ink);
-  border-right: 1px solid var(--line);
+  background: #174333;
+  color: #edf5eb;
+  border-right: 1px solid #173d2f;
   padding: 24px 15px 15px;
   height: 100dvh;
 }
@@ -31,18 +31,21 @@ body:not(.auth-locked) .app { grid-template-columns: 244px minmax(0, 1fr); min-h
 .app > aside .brand-logos { width: 48px; min-height: 48px; }
 .app > aside .logo-slot { height: 48px; width: 48px; border: 1px solid #dce9db; border-radius: 12px; box-shadow: none; }
 .app > aside .logo-slot.school-logo { display: none; }
-.app > aside .brand h1 { font: 800 19px/1.2 var(--font-body); letter-spacing: -.6px; color: #1b4b33; white-space: nowrap; }
-.app > aside .brand p { font-size: 11px; color: #788a7d; letter-spacing: .2px; }
+.app > aside .brand h1 { font: 800 19px/1.2 var(--font-body); letter-spacing: -.6px; color: #f2f8ee; white-space: nowrap; }
+.app > aside .brand p { font-size: 11px; color: #b9d0bc; letter-spacing: .2px; }
 #sideNav { gap: 15px; scrollbar-width: thin; padding: 0 3px 14px; }
 .nav-group { display: grid; gap: 3px; }
-.nav-group > p { color: #8a9b8e; margin: 0 0 4px; padding: 0 11px; font-size: 11px; font-weight: 800; letter-spacing: .35px; }
-.app .nav-btn { font-size: 14px; min-height: 42px; display: flex; gap: 10px; padding: 9px 11px; border-radius: 9px; color: #566e5e; font-weight: 600; }
+.nav-group > p { color: #b1c9b7; margin: 0 0 4px; padding: 0 11px; font-size: 11px; font-weight: 800; letter-spacing: .35px; }
+.app .nav-btn { font-size: 14px; min-height: 42px; display: flex; gap: 10px; padding: 9px 11px; border-radius: 9px; color: #dceadf; font-weight: 600; transition: background .15s, color .15s; }
 .app .nav-btn svg { width: 19px; height: 19px; flex: 0 0 19px; }
-.app .nav-btn.active { color: #205c3d; background: #e7f1e6; font-weight: 800; }
-.app .nav-btn:hover:not(.active) { color: #22533a; background: #f1f6f1; }
-.app .sidebar-footer { border-color: var(--line); padding: 14px 3px 0; }
-.app .auth-user-chip.sidebar-user-chip { padding: 9px; border: 0; background: #f4f7f4; box-shadow: none; border-radius: 11px; gap: 7px; }
-.app .sidebar-user-chip .auth-user-logout { background: white; border-color: #dfe8de; border-radius: 7px; color: #58745f; }
+.app .nav-btn.active { color: #174333; background: #dbeedb; font-weight: 800; }
+.app .nav-btn:hover:not(.active) { color: #fff; background: #2b5948; }
+.app .sidebar-footer { border-color: #3d6654; padding: 14px 3px 0; }
+.app .auth-user-chip.sidebar-user-chip { padding: 10px; border: 1px solid #426958; background: #285442; box-shadow: none; border-radius: 11px; gap: 7px; }
+.app .sidebar-user-chip .auth-user-profile-trigger, .app .sidebar-user-chip strong { color: #f0f7ed; }
+.app .sidebar-user-chip .auth-user-profile-text span { color: #c0d6c2; }
+.app .sidebar-user-chip .auth-user-logout { background: #315c4c; border-color: #4a705d; border-radius: 7px; color: #e3f0df; }
+.app .sidebar-user-chip .auth-user-logout:hover { background: #3c6954; }
 .app main { padding: 29px clamp(20px, 3vw, 42px) 42px; max-width: 1440px; }
 .app .topbar { margin-bottom: 24px; padding-bottom: 18px; border-bottom: 1px solid var(--line); align-items: flex-start; }
 .app .page-title { min-width: 0; }
@@ -283,9 +286,9 @@ body:not(.auth-locked) .app { grid-template-columns: 244px minmax(0, 1fr); min-h
   .app .auth-user-chip.mobile-user-chip { display: none; }
   .app .carbon-pill { padding: 7px 10px; font-size: 11px; }
   .app .carbon-pill strong { font-size: 18px; }
-  body:not(.auth-locked) .mobile-nav, body.chat-active:not(.auth-locked) .mobile-nav { display: grid; grid-template-columns: repeat(5,1fr); background: #fff; border-top: 1px solid #dfe8df; box-shadow: 0 -4px 14px #233b2810; padding: 7px 5px calc(7px + env(safe-area-inset-bottom)); z-index: 100; gap: 3px; }
-  .mobile-nav button { min-height: 51px; border-radius: 10px; font-size: 11px; color: #73897a; padding: 4px 3px; }
-  .mobile-nav button.active { background: #e8f2e5; color: #286748; font-weight: 800; }
+  body:not(.auth-locked) .mobile-nav, body.chat-active:not(.auth-locked) .mobile-nav { display: grid; grid-template-columns: repeat(5,1fr); background: #174333; border-top: 1px solid #315a49; box-shadow: 0 -4px 14px #173b2820; padding: 7px 5px calc(7px + env(safe-area-inset-bottom)); z-index: 100; gap: 3px; }
+  .mobile-nav button { min-height: 51px; border-radius: 10px; font-size: 11px; color: #d9e9da; padding: 4px 3px; background: transparent; }
+  .mobile-nav button.active { background: #dbeedb; color: #174333; font-weight: 800; }
   .workspace-form-layout, .workspace-community-layout { grid-template-columns: 1fr; }
   .app .workspace-summary, .app .workspace-community-side { position: static; }
   .app .workspace-summary { grid-row: 1; padding: 16px; }
