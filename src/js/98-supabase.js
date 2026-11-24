@@ -1,5 +1,69 @@
 // Supabase runtime: legacy action names are translated to authenticated RPCs.
 let gpClient = null, gpChannel = null, gpRoom = null, gpRefreshTimer = null;
+let gpRecoverySession = false;
+
+async function submitPasswordReset(event) {
+  event.preventDefault();
+  const email = String(new FormData(event.currentTarget).get('email') || '').trim().toLowerCase();
+  if (!email.includes('@')) { showAuthNotice('validation'); return; }
+  state.authBusy = true; renderAuth();
+  try {
+    if (!gpClient) throw new Error('Supabase ยังไม่พร้อม');
+    const { error } = await gpClient.auth.resetPasswordForEmail(email, { redirectTo: location.origin });
+    if (error) throw error;
+    state.authMode = 'login';
+    state.authBusy = false;
+    setAuthMessage('กรุณาตรวจสอบอีเมลสำหรับลิงก์ตั้งรหัสผ่านใหม่', 'ok');
+    const input = document.getElementById('loginUsername');
+    if (input) input.value = email;
+    showAuthNotice('reset_sent', email);
+  } catch (error) { showAuthNotice(authNoticeKind(error), email); }
+  finally { state.authBusy = false; renderAuth(); }
+}
+
+function enterPasswordRecovery() {
+  gpRecoverySession = true;
+  const notice = document.getElementById('gpAuthNotice');
+  if (notice?.open) notice.close();
+  state.currentUser = null; state.adminPIN = ''; state.authMode = 'recovery';
+  state.authBusy = false; state.authMessage = ''; state.authMessageType = '';
+  renderAuth();
+}
+
+async function cancelPasswordRecovery() {
+  gpRecoverySession = false;
+  state.currentUser = null; state.adminPIN = ''; state.authMode = 'login';
+  state.authMessage = ''; state.authMessageType = '';
+  if (gpClient) await gpClient.auth.signOut({ scope: 'local' });
+  renderAuth();
+}
+
+async function submitNewPassword(event) {
+  event.preventDefault();
+  const form = new FormData(event.currentTarget);
+  const password = String(form.get('password') || '');
+  const confirm = String(form.get('confirm') || '');
+  if (!gpRecoverySession) { showAuthNotice('recovery_invalid'); return; }
+  if (password.length < 8 || password !== confirm) { showAuthNotice('validation'); return; }
+  state.authBusy = true; renderAuth();
+  try {
+    const { data: { session } } = await gpClient.auth.getSession();
+    if (!session) { showAuthNotice('recovery_invalid'); return; }
+    const email = session.user?.email || '';
+    const { error } = await gpClient.auth.updateUser({ password });
+    if (error) throw error;
+    // End the recovery-only flow, then require a regular sign-in.
+    gpRecoverySession = false;
+    state.authMode = 'login'; state.authBusy = false;
+    state.currentUser = null; state.adminPIN = '';
+    await gpClient.auth.signOut({ scope: 'local' });
+    setAuthMessage('เปลี่ยนรหัสผ่านสำเร็จ กรุณาเข้าสู่ระบบด้วยรหัสผ่านใหม่', 'ok');
+    const input = document.getElementById('loginUsername');
+    if (input) input.value = email;
+    showAuthNotice('reset_done');
+  } catch (error) { showAuthNotice(authNoticeKind(error)); }
+  finally { state.authBusy = false; renderAuth(); }
+}
 
 async function gpCall(action, payload = {}) {
   if (!gpClient) throw new Error('Supabase ยังไม่พร้อม');
@@ -228,6 +292,10 @@ async function gpPendingMembers() {
 }
 
 async function init() {
+  // Capture the recovery intent before the Auth SDK consumes the URL fragment.
+  const fragment = new URLSearchParams(location.hash.replace(/^#/, ''));
+  const recoveryIntent = fragment.get('type') === 'recovery';
+  const invalidRecoveryLink = !!(fragment.get('error') || fragment.get('error_code'));
   state.data = makeEmptyData(); state.currentUser = null; state.adminPIN = ''; state.chatIdentity = {};
   const start = new URLSearchParams(location.search).get('page') || location.hash.replace('#page=', '');
   if (pages.some(([id]) => id === start)) state.active = start;
@@ -238,13 +306,26 @@ async function init() {
     const config = await response.json();
     gpClient = window.supabase.createClient(config.url, config.key);
     firebaseDb = gpChatAdapter();
-    const { data: { session } } = await gpClient.auth.getSession();
-    if (session) await gpSetUser();
-    gpClient.auth.onAuthStateChange(event => {
+    gpClient.auth.onAuthStateChange((event, session) => {
+      if (event === 'PASSWORD_RECOVERY' && session) {
+        enterPasswordRecovery();
+        return;
+      }
       if (event === 'SIGNED_OUT') {
-        gpStopChat(); state.currentUser = null; state.adminPIN = ''; state.data = makeEmptyData(); renderAuth();
+        gpRecoverySession = false;
+        gpStopChat(); state.currentUser = null; state.adminPIN = ''; state.data = makeEmptyData();
+        if (state.authMode === 'recovery') state.authMode = 'login';
+        renderAuth();
       }
     });
+    const { data: { session }, error: sessionError } = await gpClient.auth.getSession();
+    if (gpRecoverySession) return;
+    if (recoveryIntent || invalidRecoveryLink) {
+      if (!gpRecoverySession) showAuthNotice('recovery_invalid');
+      return;
+    }
+    if (sessionError) throw sessionError;
+    if (session) await gpSetUser();
   } catch (error) {
     const kind = authNoticeKind(error);
     setAuthMessage(kind === 'pending' ? authNoticeCopy.pending.title : authNoticeCopy[kind].text, kind === 'pending' ? 'ok' : 'bad');

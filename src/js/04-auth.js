@@ -68,10 +68,38 @@
             ${authEmailField('loginUsername', 'login')}
             ${authPasswordField('loginPassword', 'password', 'รหัสผ่าน', 'current-password', 'กรอกรหัสผ่าน', 1)}
           </div>
-          <div class="auth-help"><button type="button" class="auth-text-button" onclick="showAuthHelp()">มีปัญหาในการเข้าสู่ระบบ?</button></div>
+          <div class="auth-help" style="justify-content:space-between"><button type="button" class="auth-text-button" onclick="showAuthHelp()">มีปัญหาในการเข้าสู่ระบบ?</button><button type="button" class="auth-text-button" onclick="openPasswordReset()">ลืมรหัสผ่าน?</button></div>
           <button class="auth-primary" type="submit" data-busy-label="กำลังเข้าสู่ระบบ..." data-label="เข้าสู่ระบบ">เข้าสู่ระบบ</button>
           <p class="auth-switch">ยังไม่มีบัญชี? <button type="button" onclick="setAuthMode('signup')">สมัครสมาชิก</button></p>
         </form>`;
+    }
+
+    function resetFormHtml() {
+      return `<form class="auth-form" id="resetForm" onsubmit="submitPasswordReset(event)">
+        <div class="auth-heading"><span class="auth-kicker">ACCOUNT RECOVERY</span><h2>ลืมรหัสผ่าน?</h2><p>กรอกอีเมลที่ใช้สมัครสมาชิก ระบบจะส่งลิงก์สำหรับตั้งรหัสผ่านใหม่ให้คุณ</p></div>
+        ${authEmailField('resetEmail', 'email')}
+        <button class="auth-primary" type="submit" data-busy-label="กำลังส่งอีเมล..." data-label="ส่งลิงก์รีเซ็ตรหัสผ่าน">ส่งลิงก์รีเซ็ตรหัสผ่าน</button>
+        <button class="auth-secondary" type="button" onclick="setAuthMode('login')">${authIcons.arrow} กลับไปเข้าสู่ระบบ</button>
+      </form>`;
+    }
+
+    function recoveryFormHtml() {
+      return `<form class="auth-form" id="recoveryForm" onsubmit="submitNewPassword(event)">
+        <div class="auth-heading"><span class="auth-kicker">RESET PASSWORD</span><h2>ตั้งรหัสผ่านใหม่</h2><p>เลือกรหัสผ่านใหม่อย่างน้อย 8 ตัวอักษร แล้วเข้าสู่ระบบด้วยรหัสผ่านใหม่นี้</p></div>
+        ${authPasswordField('recoveryPassword', 'password', 'รหัสผ่านใหม่', 'new-password', 'อย่างน้อย 8 ตัวอักษร')}
+        ${authPasswordField('recoveryConfirm', 'confirm', 'ยืนยันรหัสผ่านใหม่', 'new-password', 'กรอกรหัสผ่านอีกครั้ง')}
+        <button class="auth-primary" type="submit" data-busy-label="กำลังบันทึก..." data-label="บันทึกรหัสผ่านใหม่">บันทึกรหัสผ่านใหม่</button>
+        <button class="auth-secondary" type="button" onclick="cancelPasswordRecovery()">ยกเลิก</button>
+      </form>`;
+    }
+
+    function openPasswordReset(email = '') {
+      if (state.authBusy) return;
+      email ||= document.getElementById('loginUsername')?.value || '';
+      state.authMode = 'reset'; state.authMessage = ''; state.authMessageType = '';
+      renderAuth();
+      const input = document.getElementById('resetEmail');
+      if (input) { input.value = email; input.focus(); }
     }
 
     function signupFormHtml() {
@@ -121,7 +149,7 @@
       document.body.classList.remove('chat-active');
       const screen = document.getElementById('authScreen');
       if (!screen) return;
-      const mode = state.authMode === 'signup' ? 'signup' : 'login';
+      const mode = ['signup', 'reset', 'recovery'].includes(state.authMode) ? state.authMode : 'login';
       const newForm = screen.dataset.mode !== mode || !screen.querySelector('.auth-form');
       if (newForm) {
         screen.dataset.mode = mode;
@@ -130,12 +158,12 @@
             ${authBrandHtml(greenPassportLogoSrc())}
             <section class="auth-form-panel" aria-label="${mode === 'login' ? 'เข้าสู่ระบบ' : 'สมัครสมาชิก'}">
               <div class="auth-mobile-brand"><span class="auth-mobile-mark">${greenPassportLogoSrc() ? `<img src="${escapeAttr(greenPassportLogoSrc())}" alt="">` : authIcons.leaf}</span><strong>Green Passport</strong><span>St. Theresa</span></div>
-              <nav class="auth-tabs" aria-label="เลือกหน้าบัญชี">
+              ${['login', 'signup'].includes(mode) ? `<nav class="auth-tabs" aria-label="เลือกหน้าบัญชี">
                 <button class="auth-tab ${mode === 'login' ? 'active' : ''}" type="button" aria-pressed="${mode === 'login'}" onclick="setAuthMode('login')">เข้าสู่ระบบ</button>
                 <button class="auth-tab ${mode === 'signup' ? 'active' : ''}" type="button" aria-pressed="${mode === 'signup'}" onclick="setAuthMode('signup')">สมัครสมาชิก</button>
-              </nav>
+              </nav>` : ''}
               <div id="authStatus" class="auth-status" role="status" aria-live="polite" hidden></div>
-              ${mode === 'login' ? loginFormHtml() : signupFormHtml()}
+              ${mode === 'signup' ? signupFormHtml() : mode === 'reset' ? resetFormHtml() : mode === 'recovery' ? recoveryFormHtml() : loginFormHtml()}
               <footer class="auth-form-footer">Green Passport <span>·</span> Saint Theresa School</footer>
             </section>
           </div>`;
@@ -246,6 +274,9 @@
       unconfirmed: { title: 'ยังไม่ได้ยืนยันอีเมล', text: 'กรุณาเปิดอีเมลที่ใช้สมัคร แล้วกดลิงก์ Confirm your signup หากหาไม่พบ ให้ตรวจสอบ Spam หรือขอส่งอีเมลใหม่', tone: 'warning', step: 2 },
       pending: { title: 'รอการอนุมัติจากโรงเรียน', text: 'ยืนยันอีเมลแล้วเรียบร้อย ตอนนี้บัญชีของคุณอยู่ในขั้นตอนตรวจสอบโดยผู้ดูแลโรงเรียน ยังไม่สามารถใช้งานระบบได้จนกว่าจะได้รับอนุมัติ', tone: 'info', step: 3 },
       approved: { title: 'บัญชีพร้อมใช้งานแล้ว!', text: 'โรงเรียนอนุมัติบัญชีของคุณแล้ว เริ่มต้นใช้งาน Green Passport ได้เลย', tone: 'info', step: 4 },
+      reset_sent: { title: 'ตรวจสอบอีเมลของคุณ', text: 'หากอีเมลนี้มีบัญชีในระบบ คุณจะได้รับลิงก์สำหรับตั้งรหัสผ่านใหม่ กรุณาเปิดอีเมลและกดลิงก์ Reset password หากไม่พบให้ตรวจสอบ Spam', tone: 'info' },
+      reset_done: { title: 'เปลี่ยนรหัสผ่านสำเร็จ', text: 'คุณสามารถเข้าสู่ระบบด้วยอีเมลเดิมและรหัสผ่านใหม่ได้ทันที', tone: 'info' },
+      recovery_invalid: { title: 'ลิงก์รีเซ็ตรหัสผ่านใช้ไม่ได้', text: 'ลิงก์อาจหมดอายุหรือถูกใช้ไปแล้ว กรุณาขอลิงก์รีเซ็ตรหัสผ่านใหม่', tone: 'warning' },
       credentials: { title: 'เข้าสู่ระบบไม่สำเร็จ', text: 'อีเมลหรือรหัสผ่านไม่ถูกต้อง หรือคุณอาจยังไม่ได้ยืนยันอีเมล กรุณาตรวจสอบข้อมูลและอีเมลยืนยันอีกครั้ง', tone: 'error' },
       existing: { title: 'ไม่สามารถสมัครบัญชีใหม่ได้', text: 'หากเคยสมัครด้วยอีเมลนี้แล้ว กรุณาตรวจสอบอีเมลยืนยันหรือกลับไปเข้าสู่ระบบ', tone: 'warning' },
       network: { title: 'เชื่อมต่อระบบไม่สำเร็จ', text: 'กรุณาตรวจสอบอินเทอร์เน็ต แล้วลองใหม่อีกครั้ง หากยังพบปัญหาให้ติดต่อผู้ดูแลระบบ', tone: 'error' },
@@ -281,20 +312,22 @@
       const emailConfirmed = kind === 'pending';
       const validEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
       const canResend = validEmail && ['verify', 'unconfirmed', 'credentials', 'help', 'existing'].includes(kind);
-      const canOpenMail = validEmail && ['verify', 'unconfirmed'].includes(kind) && /@gmail\.com$/i.test(email);
+      const canOpenMail = validEmail && ['verify', 'unconfirmed', 'reset_sent'].includes(kind) && /@gmail\.com$/i.test(email);
       const steps = ['สมัครสมาชิก', 'ยืนยันอีเมล', 'โรงเรียนอนุมัติ'];
       modal.dataset.tone = copy.tone;
       modal.innerHTML = `<div class="auth-notice-top"><span class="auth-notice-icon">${kind === 'pending' ? authIcons.check : kind === 'verify' || kind === 'unconfirmed' ? authIcons.mail : copy.tone === 'error' || copy.tone === 'warning' ? '!' : 'i'}</span><button type="button" class="auth-notice-close" aria-label="ปิดหน้าต่างแจ้งเตือน">×</button></div>
         <h2 id="gpAuthNoticeTitle">${copy.title}</h2><p id="gpAuthNoticeText">${copy.text}</p>
-        ${validEmail && ['verify','unconfirmed','pending'].includes(kind) ? `<div class="auth-notice-email">${escapeHtml(email)}</div>` : ''}
+        ${validEmail && ['verify','unconfirmed','pending','reset_sent'].includes(kind) ? `<div class="auth-notice-email">${escapeHtml(email)}</div>` : ''}
         ${copy.step ? `<ol class="auth-notice-steps" aria-label="สถานะบัญชี">${steps.map((step, index) => `<li class="${index + 1 < copy.step ? 'done' : index + 1 === copy.step ? 'current' : ''}" ${index + 1 === copy.step ? 'aria-current="step"' : ''}><span>${index + 1 < copy.step ? authIcons.check : index + 1}</span><div>${step}<small>${index + 1 < copy.step ? 'เรียบร้อย' : index + 1 === copy.step ? 'กำลังดำเนินการ' : 'ยังไม่ถึงขั้นตอนนี้'}</small></div></li>`).join('')}</ol>` : ''}
         <p class="auth-notice-feedback" id="gpAuthNoticeFeedback" role="status" hidden></p>
         <div class="auth-notice-actions">
           ${canOpenMail ? '<a class="auth-primary" href="https://mail.google.com/" target="_blank" rel="noopener noreferrer">เปิด Gmail</a>' : ''}
           ${emailConfirmed ? '<button type="button" class="auth-primary" data-notice-retry>ตรวจสอบสถานะอีกครั้ง</button><button type="button" class="auth-secondary" data-notice-logout>ออกจากระบบ</button>' : `<button type="button" class="${canOpenMail ? 'auth-secondary' : 'auth-primary'}" data-notice-dismiss>${copy.step === 2 ? 'กลับไปเข้าสู่ระบบ' : 'เข้าใจแล้ว'}</button>`}
           ${canResend ? '<button type="button" class="auth-notice-resend" data-notice-resend>ส่งอีเมลยืนยันใหม่</button>' : ''}
+          ${['credentials','help','recovery_invalid'].includes(kind) ? '<button type="button" class="auth-secondary" data-notice-reset>ขอตั้งรหัสผ่านใหม่</button>' : ''}
         </div>`;
       const dismiss = () => modal.close();
+      modal.querySelector('[data-notice-reset]')?.addEventListener('click', () => { dismiss(); openPasswordReset(email); });
       modal.querySelector('.auth-notice-close').addEventListener('click', dismiss);
       modal.querySelector('[data-notice-dismiss]')?.addEventListener('click', dismiss);
       modal.querySelector('[data-notice-logout]')?.addEventListener('click', async () => { dismiss(); await logout(); });
