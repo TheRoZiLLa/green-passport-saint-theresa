@@ -88,15 +88,15 @@ function createInitialGameState() {
     function renderGameStart() {
       const total = gameTotals();
       const complete = state.game.stageResults.filter(stage => stage.completed).length;
+      const progress = Math.round(complete/9*100);
       return `
-        <div class="workspace-welcome workspace-game-welcome">
-          <div class="workspace-welcome-copy"><span class="workspace-eyebrow">9 MISSIONS · LEARN BY PLAYING</span><h2>Trash Hero Academy</h2><p>ฝึกแยกขยะผ่านภารกิจสั้น ๆ เก็บดาว รับ Badge และปลดล็อกด่านต่อไป</p><div class="workspace-welcome-actions"><button class="btn" onclick="goGameScreen('map'); playGameSound('button')">${icons.game} ${complete ? 'เล่นต่อ' : 'เริ่มเล่นเกม'}</button><button class="btn ghost" onclick="goGameScreen('profile')">ข้อมูลผู้เล่น</button></div></div>
-          <div class="workspace-welcome-art">${authArt()}</div>
+        <div class="panel workspace-game-launch">
+          <div class="workspace-game-launch-copy"><span class="workspace-game-kicker"><span></span> กิจกรรมการเรียนรู้</span><h3>${complete ? 'เล่นต่อจากภารกิจล่าสุด' : 'เริ่มต้นภารกิจแรกของคุณ'}</h3><p>ฝึกแยกขยะผ่าน 9 ภารกิจ ตอบคำถาม สะสมดาว และรับรางวัลเมื่อผ่านด่าน</p><div class="btn-row"><button class="btn" onclick="goGameScreen('map'); playGameSound('button')">${icons.game} ${complete ? 'เล่นต่อ' : 'เริ่มเล่นเกม'}</button><button class="btn ghost" onclick="goGameScreen('profile')">ข้อมูลผู้เล่น</button></div></div>
+          <div class="workspace-game-progress"><div class="workspace-game-progress-heading"><span>ความก้าวหน้า</span><strong>${complete} / 9 ด่าน</strong></div><div class="progress-track"><div class="progress-fill" style="width:${progress}%"></div></div><p>${progress}% ของภารกิจทั้งหมด</p><div class="workspace-game-totals"><div><span>คะแนนรวม</span><strong>${total.score}</strong></div><div><span>ดาวสะสม</span><strong>${total.stars}</strong></div></div></div>
         </div>
-        <div class="workspace-section-title"><div><h3>ความก้าวหน้าในเกม</h3><p>เล่นตามลำดับเพื่อปลดล็อกภารกิจ</p></div><button class="workspace-link" onclick="goGameScreen('leaderboard')">อันดับเกม</button></div>
-        <div class="workspace-stats"><div class="workspace-stat"><span class="workspace-stat-icon">${icons.mission}</span><div><span>ด่านที่ผ่าน</span><strong>${complete}<small> / 9</small></strong></div></div><div class="workspace-stat"><span class="workspace-stat-icon">${icons.rank}</span><div><span>คะแนน</span><strong>${total.score}</strong></div></div><div class="workspace-stat"><span class="workspace-stat-icon">${icons.award}</span><div><span>ดาวสะสม</span><strong>${total.stars}</strong></div></div></div>
-        <div class="panel" style="margin-top:20px"><h3>วิธีเล่น</h3><div class="workspace-howto"><div><span>1</span><strong>เลือกภารกิจ</strong><p>เริ่มจากด่านแรกหรือเล่นต่อจากด่านที่ปลดล็อก</p></div><div><span>2</span><strong>ตอบคำถาม</strong><p>เลือกวิธีจัดการขยะให้ถูกต้อง</p></div><div><span>3</span><strong>รับรางวัล</strong><p>สะสมดาวและบันทึกคะแนนเมื่อเล่นเสร็จ</p></div></div>${soundToggleButton()}</div>
-        <details class="panel workspace-accordion" style="margin-top:16px"><summary>ความรู้ก่อนเล่น</summary>${renderWasteIcons()}${renderKnowledgeCards()}</details>`;
+        <div class="workspace-section-title"><div><h3>เริ่มเล่นได้เลย</h3></div><button class="workspace-link" onclick="goGameScreen('leaderboard')">ดูอันดับเกม</button></div>
+        <div class="panel"><div class="workspace-howto"><div><span>1</span><strong>เลือกภารกิจ</strong><p>เริ่มจากด่านที่ปลดล็อก</p></div><div><span>2</span><strong>ตอบคำถาม</strong><p>เลือกวิธีจัดการขยะที่ถูกต้อง</p></div><div><span>3</span><strong>รับรางวัล</strong><p>สะสมดาวและบันทึกคะแนน</p></div></div>${soundToggleButton()}</div>
+        <details class="panel workspace-accordion" style="margin-top:14px"><summary>ความรู้ก่อนเล่น</summary>${renderWasteIcons()}${renderKnowledgeCards()}</details>`;
     }
 
     function renderGameProfile() {

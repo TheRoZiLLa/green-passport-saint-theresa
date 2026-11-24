@@ -24,50 +24,27 @@ function impactSummary() {
     function renderImpact() {
       const impact = impactSummary();
       const d = state.data.dashboard;
-      const beforeAfter = state.data.householdSummary.map((h) => ({
-        label: h.HouseholdName,
-        value: Math.round(Number(h.TotalCO2e || 0) / Math.max(1, Number(h.TotalSubmissions || 1))),
-      }));
+      const months = (d.monthSeries || []).map(row=>({...row,total:Number(row.general||0)+Number(row.recycle||0)+Number(row.organic||0)+Number(row.hazardous||0)}));
+      const households = state.data.householdSummary || [];
+      const average = households.map(h=>({label:h.HouseholdName,value:Number(h.TotalCO2e||0)/Math.max(1,Number(h.TotalSubmissions||1))}));
+      const metrics = [['ลดคาร์บอนได้',format(impact.co2e),'kgCO₂e','impact'],['ขยะที่บันทึก',format(impact.totalWaste),'kg','edit'],['รายการที่ส่ง',impact.records,'รายการ','book'],['ขยะที่จัดการ',format(impact.managedWaste),'kg','mission']];
       document.getElementById('impact').innerHTML = `
-        <div class="impact-hero">
-          <div>
-            <h3>ผลกระทบของเรา Impact Dashboard 📊</h3>
-            <p>ระบบ Green Passport ไม่ได้เป็นเพียงเว็บบันทึกข้อมูล แต่เป็นเครื่องมือที่สร้างผลลัพธ์จริง โดยสามารถติดตามการจัดการขยะของครัวเรือน ${impact.households} ครัวเรือน เกิดข้อมูล ${impact.records} รายการ และลดการปล่อยก๊าซเรือนกระจกได้รวม ${format(impact.co2e)} kgCO₂e</p>
-            <div class="guide-actions">
-              <button class="btn yellow" onclick="exportCsv('impact')">Export Impact CSV</button>
-              <button class="btn secondary" onclick="showPage('starterKit')">ดูชุดขยายผล</button>
-            </div>
+        <div class="workspace-page-action"><div><h3>${isStaffUser()?'ผลลัพธ์ของโครงการ':'ผลลัพธ์ของคุณ'}</h3><p>ข้อมูลสรุปจากรายการที่บันทึกไว้ในระบบ</p></div><div class="btn-row"><button class="btn ghost" onclick="refreshWorkspaceData()">อัปเดตข้อมูล</button>${isStaffUser()?'<button class="btn" onclick="exportCsv(\'impact\')">ดาวน์โหลดรายงาน</button>':''}</div></div>
+        <div class="workspace-impact-stats">${metrics.map(([label,value,unit,icon])=>`<div class="workspace-stat"><div class="workspace-stat-copy"><span>${label}</span><strong>${value} <small>${unit}</small></strong></div><span class="workspace-stat-icon">${icons[icon]}</span></div>`).join('')}</div>
+        <div class="grid two" style="margin-top:15px">
+          <div class="panel chart-card"><h3>คาร์บอนที่ลดได้รายเดือน</h3>${months.length?barChart(months,'month','co2e','kgCO₂e'):'<div class="workspace-chart-empty">ยังไม่มีข้อมูลรายเดือน</div>'}</div>
+          <div class="panel chart-card"><h3>สัดส่วนขยะ 4 ประเภท</h3>${impact.records?wasteTypeBars():'<div class="workspace-chart-empty">ยังไม่มีรายการบันทึกขยะ</div>'}</div>
+        </div>
+        <details class="panel workspace-accordion" style="margin-top:15px"><summary>ข้อมูลและกราฟเพิ่มเติม</summary>
+          <div class="grid two">
+            <div class="panel chart-card"><h3>ขยะรวมรายเดือน</h3>${barChart(months,'month','total','kg')}</div>
+            <div class="panel chart-card"><h3>แนวโน้มขยะทั่วไป</h3>${barChart(months,'month','general','kg')}</div>
+            <div class="panel chart-card"><h3>ขยะอินทรีย์ที่จัดการ</h3>${barChart(months,'month','organicManaged','kg')}</div>
+            <div class="panel chart-card"><h3>คาร์บอนเฉลี่ยต่อรายการของครัวเรือน</h3>${barChart(average,'label','value','kgCO₂e')}</div>
           </div>
-          ${greenBuddy('นี่คือหน้าสำหรับผู้บริหารและกรรมการ ใช้ดูผลลัพธ์เชิงปริมาณ ตรวจสอบได้ และขยายผลได้ 🌍', true)}
-        </div>
-        <div class="impact-grid">
-          ${[
-            ['ครัวเรือนที่เข้าร่วม', impact.households, 'ครัวเรือน'],
-            ['รายการบันทึกทั้งหมด', impact.records, 'รายการ'],
-            ['ผู้มีส่วนร่วมทั้งหมด', impact.participants, 'คน'],
-            ['นักเรียนแกนนำ', impact.studentLeaders, 'คน'],
-            ['สมาชิกครอบครัว', impact.familyMembers, 'คน'],
-            ['ขยะรวมที่บันทึกได้', format(impact.totalWaste), 'kg'],
-            ['ขยะจัดการถูกวิธี', format(impact.managedWaste), 'kg'],
-            ['ลดก๊าซเรือนกระจก', format(impact.co2e), 'kgCO₂e'],
-            ['พฤติกรรมลดขยะต้นทาง', impact.reduceActions, 'ครั้ง'],
-            ['Zero Waste Home', impact.zeroWasteHomes, 'ครัวเรือน'],
-            ['Badge ที่ได้รับ', impact.badges, 'Badge'],
-            ['ผู้เล่น Trash Hero', impact.gamePlayers, 'คน'],
-          ].map(([label, value, unit]) => `<div class="impact-card"><span>${label}</span><strong>${value}</strong><small>${unit}</small></div>`).join('')}
-        </div>
-        <div class="grid two" style="margin-top:16px">
-          <div class="panel chart-card"><h3>1. ขยะรวมรายเดือน</h3>${barChart(d.monthSeries, 'month', 'general', 'kg ขยะทั่วไป')}<p class="chart-note">ใช้ติดตามแนวโน้มปริมาณขยะที่ครัวเรือนบันทึก</p></div>
-          <div class="panel chart-card"><h3>2. ขยะ 4 ประเภท</h3>${wasteTypeBars()}<p class="chart-note">เปรียบเทียบทั่วไป รีไซเคิล อินทรีย์ และอันตราย</p></div>
-          <div class="panel chart-card"><h3>3. แนวโน้มขยะทั่วไปลดลง</h3>${barChart(d.monthSeries, 'month', 'general', 'kg')}<p class="chart-note">เป้าหมายคือให้ขยะทั่วไปลดลงต่อเนื่อง</p></div>
-          <div class="panel chart-card"><h3>4. อินทรีย์จัดการถูกวิธี</h3>${barChart(d.monthSeries, 'month', 'organicManaged', 'kg')}<p class="chart-note">สะท้อนการทำปุ๋ยหมัก น้ำหมัก หรือใช้ประโยชน์</p></div>
-          <div class="panel chart-card"><h3>5. คาร์บอนสะสม</h3>${barChart(d.monthSeries, 'month', 'co2e', 'kgCO₂e')}<p class="chart-note">ยอดลดคาร์บอนสะสมแสดงผลลัพธ์เป็นตัวเลข</p></div>
-          <div class="panel chart-card"><h3>6. ก่อน–หลังรายครัวเรือน</h3>${barChart(beforeAfter, 'label', 'value', 'คะแนนพัฒนา')}<p class="chart-note">ใช้เล่าเรื่องพัฒนาการของครัวเรือนต้นแบบ</p></div>
-        </div>
-        <div class="panel" style="margin-top:16px">
-          <h3>Green Buddy วิเคราะห์อัตโนมัติ</h3>
-          <div class="buddy-advice-grid">${adviceRules.map((rule) => `<div class="advice-card"><strong>${rule.Emoji} ${rule.AdviceTitle}</strong><p>${rule.AdviceText}</p><small>กฎ: ${rule.Condition} | แนะนำ: ${rule.SuggestedAction}</small></div>`).join('')}</div>
-        </div>`;
+          <div class="workspace-impact-stats" style="margin-top:14px">${[['ครัวเรือน',impact.households,'ครัวเรือน'],['พฤติกรรมลดขยะ',impact.reduceActions,'ครั้ง'],['ครัวเรือนที่ส่งอย่างน้อย 3 ครั้ง',impact.zeroWasteHomes,'ครัวเรือน'],['Badge ที่ได้รับ',impact.badges,'Badge']].map(([label,value,unit])=>`<div class="workspace-stat"><div class="workspace-stat-copy"><span>${label}</span><strong>${value} <small>${unit}</small></strong></div></div>`).join('')}</div>
+        </details>
+        <div class="panel workspace-impact-next" style="margin-top:15px"><div><h3>ทำให้ผลลัพธ์ดีขึ้น</h3><p>เรียนรู้วิธีลดและแยกขยะ แล้วบันทึกกิจกรรมของคุณอย่างต่อเนื่อง</p></div><div class="btn-row"><button class="btn ghost" onclick="showPage('guide')">ดูคู่มือ</button><button class="btn" onclick="showPage('record')">บันทึกขยะ</button>${isStaffUser()?'<button class="btn ghost" onclick="showPage(\'starterKit\')">ชุดขยายผล</button>':''}</div></div>`;
     }
 
     function renderDashboard() {

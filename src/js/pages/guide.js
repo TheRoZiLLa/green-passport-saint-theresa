@@ -78,17 +78,13 @@
         ['🔐 ข้อมูลที่ส่งไปใช้ทำอะไร', 'ใช้ติดตามผลการลดขยะ ลดคาร์บอน จัดอันดับ และพัฒนากิจกรรมโรงเรียน', 'โรงเรียนควรใช้ข้อมูลเพื่อการศึกษาและรายงานโครงการอย่างเหมาะสม'],
       ];
       document.getElementById('guide').innerHTML = `
-        <div class="guide-hero">
-          <div>
-            <h3>คู่มือแยกขยะ Green Passport 🌱</h3>
-            <p>เรียนรู้วิธีแยกขยะ 5 ประเภท ตั้งมุมแยกขยะที่บ้าน บันทึกข้อมูล และเข้าใจว่าการจัดการขยะช่วยลดคาร์บอนได้อย่างไร</p>
-            <div class="notice">แยกให้ถูกถัง ลดขยะตั้งแต่ต้นทาง และช่วยลดคาร์บอนจากครัวเรือน 🌱 ♻️ 🌍 🏡</div>
-            <div class="guide-nav">
-              ${['ทำไมต้องแยก', '5 ประเภท', '3Rs', 'มุมที่บ้าน', 'บันทึกข้อมูล', 'หลักฐาน', 'ลดคาร์บอน', 'Zero Waste', 'FAQ'].map((label, i) => `<a href="#guide-${i + 1}">${label}</a>`).join('')}
-            </div>
-          </div>
-          ${greenBuddy('เริ่มจากแยกขยะหนึ่งชิ้น แล้วบันทึกหนึ่งครั้งใน Green Passport ก็ช่วยโลกได้แล้ว 💚', true)}
-        </div>
+        <div class="workspace-guide-layout">
+          <nav class="workspace-guide-nav" aria-label="หัวข้อคู่มือ">
+            <strong>หัวข้อคู่มือ</strong>
+            ${['เริ่มต้นแยกขยะ','ขยะ 5 ประเภท','หลัก 3Rs','มุมแยกขยะที่บ้าน','วิธีบันทึกข้อมูล','ภาพหลักฐาน','การลดคาร์บอน','Zero Waste Home','คำถามที่พบบ่อย'].map((label,i)=>`<button type="button" data-guide-topic="${i+1}" onclick="selectGuideTopic(${i+1})">${label}</button>`).join('')}
+          </nav>
+          <div class="workspace-guide-content">
+            <label class="workspace-guide-mobile">เลือกหัวข้อ<select id="guideTopicSelect" onchange="selectGuideTopic(Number(this.value))">${['เริ่มต้นแยกขยะ','ขยะ 5 ประเภท','หลัก 3Rs','มุมแยกขยะที่บ้าน','วิธีบันทึกข้อมูล','ภาพหลักฐาน','การลดคาร์บอน','Zero Waste Home','คำถามที่พบบ่อย'].map((label,i)=>`<option value="${i+1}">${label}</option>`).join('')}</select></label>
 
         <section id="guide-1" class="panel guide-section">
           <h3>1. ทำไมต้องแยกขยะ</h3>
@@ -168,13 +164,21 @@
           <div class="faq-list">${faqs.map(([qText, answer, tip]) => `<details><summary>${qText}</summary><p>${answer}</p><small>${tip}</small></details>`).join('')}</div>
         </section>
 
-        <section class="panel guide-section">
-          <h3>สรุปท้ายหน้า</h3>
-          <p>การแยกขยะไม่ใช่เรื่องไกลตัว แต่เป็นพฤติกรรมเล็ก ๆ ที่ทุกคนเริ่มได้จากบ้านของตนเอง เมื่อเราแยกขยะถูกต้อง บันทึกข้อมูลอย่างสม่ำเสมอ และร่วมมือกันทั้งครอบครัว เราจะสามารถลดขยะ ลดคาร์บอน และก้าวสู่การเป็นครัวเรือนต้นแบบ Zero Waste ได้อย่างแท้จริง</p>
-          <div class="guide-actions">
-            <button class="btn ghost" onclick="showPage('home')">กลับหน้าแรก</button>
-            <button class="btn" onclick="showPage('record')">ไปบันทึกข้อมูลขยะ</button>
-            <button class="btn secondary" onclick="showPage('game')">ไปเล่น Trash Hero Academy</button>
+          <div class="panel workspace-impact-next"><div><h3>ลงมือทำกิจกรรม</h3><p>ลองนำความรู้ไปใช้จริง แล้วบันทึกผลลัพธ์ในระบบ</p></div><div class="btn-row"><button class="btn ghost" onclick="showPage('game')">เรียนรู้ผ่านเกม</button><button class="btn" onclick="showPage('record')">บันทึกขยะ</button></div></div>
           </div>
-        </section>`;
+        </div>`;
+      selectGuideTopic(state.guideTopic || 2);
+    }
+
+    function selectGuideTopic(topic) {
+      const n = Math.min(9, Math.max(1, Number(topic) || 2));
+      state.guideTopic = n;
+      document.querySelectorAll('#guide [id^="guide-"]').forEach(section => section.hidden = section.id !== 'guide-' + n);
+      document.querySelectorAll('[data-guide-topic]').forEach(button => {
+        const active = Number(button.dataset.guideTopic) === n;
+        button.classList.toggle('active', active);
+        button.setAttribute('aria-pressed', String(active));
+      });
+      const select = document.getElementById('guideTopicSelect');
+      if (select) select.value = String(n);
     }

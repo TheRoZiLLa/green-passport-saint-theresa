@@ -788,7 +788,7 @@
             <span>${escapeHtml(user.ClassName || user.Role || 'Green Passport')}</span>
           </span>
         </button>
-        <button type="button" class="auth-user-logout" onclick="logout()">Logout</button>`;
+        <button type="button" class="auth-user-logout" onclick="logout()" title="ออกจากระบบ" aria-label="ออกจากระบบ"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 17H5V7h5M14 8l4 4-4 4m-6-4h10"/></svg></button>`;
       chips.forEach((chip) => {
         chip.hidden = false;
         chip.innerHTML = chipHtml;

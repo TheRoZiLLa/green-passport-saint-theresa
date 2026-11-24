@@ -2283,7 +2283,7 @@
             <span>${escapeHtml(user.ClassName || user.Role || 'Green Passport')}</span>
           </span>
         </button>
-        <button type="button" class="auth-user-logout" onclick="logout()">Logout</button>`;
+        <button type="button" class="auth-user-logout" onclick="logout()" title="ออกจากระบบ" aria-label="ออกจากระบบ"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 17H5V7h5M14 8l4 4-4 4m-6-4h10"/></svg></button>`;
       chips.forEach((chip) => {
         chip.hidden = false;
         chip.innerHTML = chipHtml;
@@ -2452,9 +2452,12 @@
       }
       const current = pages.find(([id]) => id === state.active);
       document.body.classList.remove('auth-locked');
+      document.body.dataset.workspacePage = state.active;
       document.body.classList.toggle('chat-active', state.active === 'chat');
-      document.getElementById('pageTitle').textContent = workspaceLabel(state.active);
-      document.getElementById('pageSubtitle').textContent = workspacePages[state.active]?.[1] || '';
+      document.getElementById('pageTitle').textContent = state.active === 'home' ? 'สวัสดี, ' + (state.currentUser?.DisplayName || 'สมาชิก') : workspaceLabel(state.active);
+      document.getElementById('pageSubtitle').textContent = state.active === 'home' ? 'ภาพรวมกิจกรรม Green Passport ของคุณ' : (workspacePages[state.active]?.[1] || '');
+      const quickAction = document.getElementById('workspaceQuickAction');
+      if (quickAction) { quickAction.hidden = state.active !== 'home'; quickAction.innerHTML = icons.edit + ' บันทึกขยะ'; }
       document.getElementById('globalCarbon').textContent = format(state.data.dashboard.totalCO2e || 0);
       const carbonLabel = document.querySelector('.carbon-pill > div');
       if (carbonLabel) carbonLabel.textContent = isStaffUser() ? 'คาร์บอนในระบบ' : 'คาร์บอนของคุณ';
@@ -2517,38 +2520,42 @@
 // ---- src/js/pages/home.js ----
     function renderHome() {
       const user = state.currentUser || {};
-      const records = (state.data.wasteRecords || []).filter(r => String(r.UserID) === String(user.UserID));
+      const records = (state.data.wasteRecords || []).filter(r => String(r.UserID) === String(user.UserID)).sort((a,b)=>String(b.ReportMonth || b.SubmittedAt || '').localeCompare(String(a.ReportMonth || a.SubmittedAt || '')));
       const co2e = records.reduce((total, r) => total + Number(r.TotalCO2e || 0), 0);
       const exp = (state.data.expLogs || []).filter(r => String(r.UserID) === String(user.UserID)).reduce((total, r) => total + Number(r.EXPAmount || 0), 0);
       const month = new Date().toISOString().slice(0, 7);
       const currentRecord = records.find(r => r.ReportMonth === month);
-      const name = escapeHtml(user.DisplayName || 'Green Buddy');
-      const nextAction = currentRecord ? 'ทำภารกิจต่อ' : 'เริ่มบันทึกขยะ';
-      const nextPage = currentRecord ? 'game' : 'record';
+      const approved = currentRecord?.ReviewStatus === 'ผ่านการตรวจสอบ';
+      const niceMonth = value => {
+        const date = new Date(String(value || month) + '-01T12:00:00');
+        return Number.isNaN(date.getTime()) ? String(value || '') : date.toLocaleDateString('th-TH',{month:'long',year:'numeric'});
+      };
+      const status = r => r?.ReviewStatus || 'รอตรวจสอบ';
+      const town = (label, compact, value, unit, icon) => `<div class="workspace-stat"><div class="workspace-stat-copy"><span class="workspace-stat-label-full">${label}</span><span class="workspace-stat-label-compact">${compact}</span><strong>${value} <small>${unit}</small></strong></div><span class="workspace-stat-icon">${icons[icon]}</span></div>`;
+      const dashboardActions = [['record','edit','บันทึกขยะ','ส่งข้อมูลประจำเดือน'],['game','game','Trash Hero Academy','เรียนรู้และสะสมรางวัล'],['community','community','ชุมชน','แบ่งปันไอเดีย'],['guide','book','คู่มือแยกขยะ','ค้นหาวิธีจัดการขยะ']];
       document.getElementById('home').innerHTML = `
-        <div class="workspace-welcome">
-          <div class="workspace-welcome-copy">
-            <div class="workspace-eyebrow">GREEN PASSPORT · ST. THERESA</div>
-            <h2>สวัสดี, ${name}</h2>
-            <p>${currentRecord ? 'คุณบันทึกข้อมูลเดือนนี้แล้ว ลองเรียนรู้และทำกิจกรรมอื่น ๆ ต่อได้เลย' : 'เริ่มต้นด้วยการบันทึกขยะที่บ้าน แล้วสะสมความก้าวหน้าไปด้วยกัน'}</p>
-            <div class="workspace-welcome-actions">
-              <button class="btn" onclick="showPage('${nextPage}')">${icons[nextPage === 'record' ? 'edit' : 'game']} ${nextAction}</button>
-              <button class="btn ghost" onclick="showPage('guide')">ดูคู่มือแยกขยะ</button>
-            </div>
-          </div>
-          <div class="workspace-welcome-art">${authArt()}</div>
-        </div>
-        <div class="workspace-section-title"><div><h3>ความก้าวหน้าของคุณ</h3><p>ผลลัพธ์จากกิจกรรมของบัญชีนี้</p></div><button class="workspace-link" onclick="showOwnProfile()">ดูโปรไฟล์</button></div>
         <div class="workspace-stats">
-          <div class="workspace-stat"><span class="workspace-stat-icon">${icons.impact}</span><div><span>คาร์บอนที่ลดได้</span><strong>${format(co2e)} <small>kgCO₂e</small></strong></div></div>
-          <div class="workspace-stat"><span class="workspace-stat-icon">${icons.edit}</span><div><span>รายการบันทึก</span><strong>${records.length} <small>รายการ</small></strong></div></div>
-          <div class="workspace-stat"><span class="workspace-stat-icon">${icons.award}</span><div><span>ประสบการณ์สะสม</span><strong>${exp} <small>EXP</small></strong></div></div>
+          ${town('คาร์บอนที่ลดได้','ลดคาร์บอน',format(co2e),'kgCO₂e','impact')}
+          ${town('รายการที่ส่งแล้ว','ส่งแล้ว',records.length,'รายการ','edit')}
+          ${town('ประสบการณ์สะสม','ประสบการณ์',exp,'EXP','award')}
         </div>
-        <div class="workspace-section-title"><div><h3>อยากทำอะไรต่อ?</h3><p>เลือกกิจกรรมที่สนใจ</p></div><button class="workspace-link" onclick="showWorkspaceMenu()">ดูเมนูทั้งหมด</button></div>
+        <div class="workspace-dashboard-grid">
+          <section class="panel workspace-dashboard-card workspace-recent">
+            <div class="workspace-card-heading"><div><h3>รายการบันทึกล่าสุด</h3><p>ประวัติการส่งข้อมูลของคุณ</p></div><button class="workspace-link" onclick="showPage('impact')">ดูผลลัพธ์ทั้งหมด</button></div>
+            ${records.length ? `<div class="workspace-record-list">${records.slice(0,4).map(r=>`<div class="workspace-record-row"><span class="workspace-record-icon">${icons.edit}</span><div class="workspace-record-name"><strong>${escapeHtml(niceMonth(r.ReportMonth))}</strong><small>${format(r.TotalCO2e || 0)} kgCO₂e</small></div><span class="workspace-record-status ${r.ReviewStatus === 'ผ่านการตรวจสอบ' ? 'is-approved' : ''}">${escapeHtml(status(r))}</span></div>`).join('')}</div>` : `<div class="workspace-recent-empty"><span class="workspace-record-icon">${icons.edit}</span><strong>ยังไม่มีรายการบันทึก</strong><p>เริ่มบันทึกข้อมูลครั้งแรกเพื่อดูผลลัพธ์ของคุณที่นี่</p><button class="btn ghost" onclick="showPage('record')">เริ่มบันทึก</button></div>`}
+          </section>
+          <section class="panel workspace-dashboard-card workspace-month-card">
+            <div class="workspace-card-heading"><div><h3>ภารกิจประจำเดือน</h3><p>${escapeHtml(niceMonth(month))}</p></div><span class="workspace-record-icon">${icons.mission}</span></div>
+            <div class="workspace-task-state"><span class="workspace-task-dot ${currentRecord?'submitted':''}"></span><strong>${currentRecord ? approved ? 'บันทึกเสร็จสมบูรณ์' : status(currentRecord) : 'ยังไม่ได้บันทึก'}</strong></div>
+            <p>${currentRecord ? 'คุณส่งข้อมูลเดือนนี้แล้ว สามารถติดตามสถานะหรือทำกิจกรรมอื่นต่อได้' : 'ส่งข้อมูลปริมาณขยะและภาพหลักฐานของเดือนนี้เพื่อสะสมความก้าวหน้า'}</p>
+            <button class="btn ${currentRecord ? 'ghost' : ''}" onclick="showPage('${currentRecord ? 'impact' : 'record'}')">${currentRecord ? 'ดูผลลัพธ์ของฉัน' : 'เริ่มบันทึกเดือนนี้'}</button>
+          </section>
+        </div>
+        <div class="workspace-section-title"><div><h3>เมนูที่ใช้บ่อย</h3></div><button class="workspace-link" onclick="showWorkspaceMenu()">เมนูทั้งหมด</button></div>
         <div class="workspace-action-grid">
-          ${[['record','edit','บันทึกขยะ','ส่งข้อมูลและหลักฐานกิจกรรมที่บ้าน'],['game','game','เล่นเกม','เรียนรู้และสะสม Badge'],['community','community','ชุมชน','แชร์ไอเดียและผลงานกับเพื่อน'],['chat','chat','พูดคุย','สอบถามและแลกเปลี่ยนในห้องแชท']].map(([id, icon, title, desc]) => `<button class="workspace-action-card" onclick="showPage('${id}')"><span class="workspace-action-icon">${icons[icon]}</span><div><strong>${title}</strong><small>${desc}</small></div></button>`).join('')}
+          ${dashboardActions.map(([id,icon,title,desc])=>`<button class="workspace-action-card" onclick="showPage('${id}')"><span class="workspace-action-icon">${icons[icon]}</span><div><strong>${title}</strong><small>${desc}</small></div></button>`).join('')}
         </div>
-        ${isStaffUser() ? `<div class="workspace-admin-callout"><div><strong>จัดการโครงการ</strong><p>ตรวจสอบรายการที่ส่ง อนุมัติสมาชิก และดูแลชุมชน</p></div><button class="btn ghost" onclick="showPage('admin')">เปิดแผงจัดการ</button></div>` : ''}`;
+        ${isStaffUser() ? `<div class="workspace-admin-callout"><div><strong>สำหรับผู้ดูแลโครงการ</strong><p>ตรวจสอบรายการที่ส่ง อนุมัติสมาชิก และดูแลชุมชน</p></div><button class="btn ghost" onclick="showPage('admin')">จัดการระบบ</button></div>` : ''}`;
     }
 
     function menuHelp(id) {
@@ -2623,12 +2630,12 @@
               <div class="workspace-info">หลังส่งรายการ ครูจะตรวจสอบข้อมูลก่อนเปลี่ยนสถานะเป็นผ่านการตรวจสอบ</div>
             </div>
             <div id="recordFormError" class="workspace-form-error" role="alert" hidden></div>
-            <div class="workspace-form-actions"><button type="button" class="btn ghost" id="recordBack">ย้อนกลับ</button><button type="submit" class="btn" id="recordNext">ขั้นตอนถัดไป</button></div>
+            <div class="workspace-form-actions"><div class="workspace-mobile-estimate"><span>ประมาณการคาร์บอน</span><strong><span id="liveCo2eMobile">0.00</span> kgCO₂e</strong></div><button type="button" class="btn ghost" id="recordBack">ย้อนกลับ</button><button type="submit" class="btn" id="recordNext">ขั้นตอนถัดไป</button></div>
           </form>
           <aside class="workspace-summary panel">
-            <span class="workspace-eyebrow">ผลลัพธ์ของกิจกรรม</span><h3>คาร์บอนที่ลดได้</h3>
+            <span class="workspace-eyebrow">ผลลัพธ์ของกิจกรรม</span><h3>ประมาณการคาร์บอน</h3>
             <div class="workspace-carbon-value"><span id="liveCo2e">0.00</span><small>kgCO₂e</small></div>
-            <p>คำนวณจากข้อมูลกิจกรรมที่คุณกรอก</p>
+            <p>คำนวณจากข้อมูลกิจกรรมที่กรอก ระบบจะตรวจสอบอีกครั้งเมื่อส่ง</p>
             <div class="workspace-summary-tip"><strong>คำแนะนำ</strong><p id="liveAdvice">เริ่มกรอกข้อมูลเพื่อดูคำแนะนำ</p></div>
             <span class="workspace-summary-note">ระบบคำนวณผลลัพธ์โดยอัตโนมัติ</span>
           </aside>
@@ -2675,7 +2682,9 @@
       const data = Object.fromEntries(new FormData(form).entries());
       const co2e = calculateCo2e(data);
       document.getElementById('liveCo2e').textContent = format(co2e);
-      document.getElementById('liveAdvice').textContent = advice(data, co2e);
+      const mobileEstimate = document.getElementById('liveCo2eMobile');
+      if (mobileEstimate) mobileEstimate.textContent = format(co2e);
+      document.getElementById('liveAdvice').textContent = advice(data, co2e).replace(/\p{Extended_Pictographic}/gu, '').trim();
     }
 
     async function submitRecord(event) {
@@ -2815,17 +2824,13 @@
         ['🔐 ข้อมูลที่ส่งไปใช้ทำอะไร', 'ใช้ติดตามผลการลดขยะ ลดคาร์บอน จัดอันดับ และพัฒนากิจกรรมโรงเรียน', 'โรงเรียนควรใช้ข้อมูลเพื่อการศึกษาและรายงานโครงการอย่างเหมาะสม'],
       ];
       document.getElementById('guide').innerHTML = `
-        <div class="guide-hero">
-          <div>
-            <h3>คู่มือแยกขยะ Green Passport 🌱</h3>
-            <p>เรียนรู้วิธีแยกขยะ 5 ประเภท ตั้งมุมแยกขยะที่บ้าน บันทึกข้อมูล และเข้าใจว่าการจัดการขยะช่วยลดคาร์บอนได้อย่างไร</p>
-            <div class="notice">แยกให้ถูกถัง ลดขยะตั้งแต่ต้นทาง และช่วยลดคาร์บอนจากครัวเรือน 🌱 ♻️ 🌍 🏡</div>
-            <div class="guide-nav">
-              ${['ทำไมต้องแยก', '5 ประเภท', '3Rs', 'มุมที่บ้าน', 'บันทึกข้อมูล', 'หลักฐาน', 'ลดคาร์บอน', 'Zero Waste', 'FAQ'].map((label, i) => `<a href="#guide-${i + 1}">${label}</a>`).join('')}
-            </div>
-          </div>
-          ${greenBuddy('เริ่มจากแยกขยะหนึ่งชิ้น แล้วบันทึกหนึ่งครั้งใน Green Passport ก็ช่วยโลกได้แล้ว 💚', true)}
-        </div>
+        <div class="workspace-guide-layout">
+          <nav class="workspace-guide-nav" aria-label="หัวข้อคู่มือ">
+            <strong>หัวข้อคู่มือ</strong>
+            ${['เริ่มต้นแยกขยะ','ขยะ 5 ประเภท','หลัก 3Rs','มุมแยกขยะที่บ้าน','วิธีบันทึกข้อมูล','ภาพหลักฐาน','การลดคาร์บอน','Zero Waste Home','คำถามที่พบบ่อย'].map((label,i)=>`<button type="button" data-guide-topic="${i+1}" onclick="selectGuideTopic(${i+1})">${label}</button>`).join('')}
+          </nav>
+          <div class="workspace-guide-content">
+            <label class="workspace-guide-mobile">เลือกหัวข้อ<select id="guideTopicSelect" onchange="selectGuideTopic(Number(this.value))">${['เริ่มต้นแยกขยะ','ขยะ 5 ประเภท','หลัก 3Rs','มุมแยกขยะที่บ้าน','วิธีบันทึกข้อมูล','ภาพหลักฐาน','การลดคาร์บอน','Zero Waste Home','คำถามที่พบบ่อย'].map((label,i)=>`<option value="${i+1}">${label}</option>`).join('')}</select></label>
 
         <section id="guide-1" class="panel guide-section">
           <h3>1. ทำไมต้องแยกขยะ</h3>
@@ -2905,15 +2910,23 @@
           <div class="faq-list">${faqs.map(([qText, answer, tip]) => `<details><summary>${qText}</summary><p>${answer}</p><small>${tip}</small></details>`).join('')}</div>
         </section>
 
-        <section class="panel guide-section">
-          <h3>สรุปท้ายหน้า</h3>
-          <p>การแยกขยะไม่ใช่เรื่องไกลตัว แต่เป็นพฤติกรรมเล็ก ๆ ที่ทุกคนเริ่มได้จากบ้านของตนเอง เมื่อเราแยกขยะถูกต้อง บันทึกข้อมูลอย่างสม่ำเสมอ และร่วมมือกันทั้งครอบครัว เราจะสามารถลดขยะ ลดคาร์บอน และก้าวสู่การเป็นครัวเรือนต้นแบบ Zero Waste ได้อย่างแท้จริง</p>
-          <div class="guide-actions">
-            <button class="btn ghost" onclick="showPage('home')">กลับหน้าแรก</button>
-            <button class="btn" onclick="showPage('record')">ไปบันทึกข้อมูลขยะ</button>
-            <button class="btn secondary" onclick="showPage('game')">ไปเล่น Trash Hero Academy</button>
+          <div class="panel workspace-impact-next"><div><h3>ลงมือทำกิจกรรม</h3><p>ลองนำความรู้ไปใช้จริง แล้วบันทึกผลลัพธ์ในระบบ</p></div><div class="btn-row"><button class="btn ghost" onclick="showPage('game')">เรียนรู้ผ่านเกม</button><button class="btn" onclick="showPage('record')">บันทึกขยะ</button></div></div>
           </div>
-        </section>`;
+        </div>`;
+      selectGuideTopic(state.guideTopic || 2);
+    }
+
+    function selectGuideTopic(topic) {
+      const n = Math.min(9, Math.max(1, Number(topic) || 2));
+      state.guideTopic = n;
+      document.querySelectorAll('#guide [id^="guide-"]').forEach(section => section.hidden = section.id !== 'guide-' + n);
+      document.querySelectorAll('[data-guide-topic]').forEach(button => {
+        const active = Number(button.dataset.guideTopic) === n;
+        button.classList.toggle('active', active);
+        button.setAttribute('aria-pressed', String(active));
+      });
+      const select = document.getElementById('guideTopicSelect');
+      if (select) select.value = String(n);
     }
 
 
@@ -3008,15 +3021,15 @@ function createInitialGameState() {
     function renderGameStart() {
       const total = gameTotals();
       const complete = state.game.stageResults.filter(stage => stage.completed).length;
+      const progress = Math.round(complete/9*100);
       return `
-        <div class="workspace-welcome workspace-game-welcome">
-          <div class="workspace-welcome-copy"><span class="workspace-eyebrow">9 MISSIONS · LEARN BY PLAYING</span><h2>Trash Hero Academy</h2><p>ฝึกแยกขยะผ่านภารกิจสั้น ๆ เก็บดาว รับ Badge และปลดล็อกด่านต่อไป</p><div class="workspace-welcome-actions"><button class="btn" onclick="goGameScreen('map'); playGameSound('button')">${icons.game} ${complete ? 'เล่นต่อ' : 'เริ่มเล่นเกม'}</button><button class="btn ghost" onclick="goGameScreen('profile')">ข้อมูลผู้เล่น</button></div></div>
-          <div class="workspace-welcome-art">${authArt()}</div>
+        <div class="panel workspace-game-launch">
+          <div class="workspace-game-launch-copy"><span class="workspace-game-kicker"><span></span> กิจกรรมการเรียนรู้</span><h3>${complete ? 'เล่นต่อจากภารกิจล่าสุด' : 'เริ่มต้นภารกิจแรกของคุณ'}</h3><p>ฝึกแยกขยะผ่าน 9 ภารกิจ ตอบคำถาม สะสมดาว และรับรางวัลเมื่อผ่านด่าน</p><div class="btn-row"><button class="btn" onclick="goGameScreen('map'); playGameSound('button')">${icons.game} ${complete ? 'เล่นต่อ' : 'เริ่มเล่นเกม'}</button><button class="btn ghost" onclick="goGameScreen('profile')">ข้อมูลผู้เล่น</button></div></div>
+          <div class="workspace-game-progress"><div class="workspace-game-progress-heading"><span>ความก้าวหน้า</span><strong>${complete} / 9 ด่าน</strong></div><div class="progress-track"><div class="progress-fill" style="width:${progress}%"></div></div><p>${progress}% ของภารกิจทั้งหมด</p><div class="workspace-game-totals"><div><span>คะแนนรวม</span><strong>${total.score}</strong></div><div><span>ดาวสะสม</span><strong>${total.stars}</strong></div></div></div>
         </div>
-        <div class="workspace-section-title"><div><h3>ความก้าวหน้าในเกม</h3><p>เล่นตามลำดับเพื่อปลดล็อกภารกิจ</p></div><button class="workspace-link" onclick="goGameScreen('leaderboard')">อันดับเกม</button></div>
-        <div class="workspace-stats"><div class="workspace-stat"><span class="workspace-stat-icon">${icons.mission}</span><div><span>ด่านที่ผ่าน</span><strong>${complete}<small> / 9</small></strong></div></div><div class="workspace-stat"><span class="workspace-stat-icon">${icons.rank}</span><div><span>คะแนน</span><strong>${total.score}</strong></div></div><div class="workspace-stat"><span class="workspace-stat-icon">${icons.award}</span><div><span>ดาวสะสม</span><strong>${total.stars}</strong></div></div></div>
-        <div class="panel" style="margin-top:20px"><h3>วิธีเล่น</h3><div class="workspace-howto"><div><span>1</span><strong>เลือกภารกิจ</strong><p>เริ่มจากด่านแรกหรือเล่นต่อจากด่านที่ปลดล็อก</p></div><div><span>2</span><strong>ตอบคำถาม</strong><p>เลือกวิธีจัดการขยะให้ถูกต้อง</p></div><div><span>3</span><strong>รับรางวัล</strong><p>สะสมดาวและบันทึกคะแนนเมื่อเล่นเสร็จ</p></div></div>${soundToggleButton()}</div>
-        <details class="panel workspace-accordion" style="margin-top:16px"><summary>ความรู้ก่อนเล่น</summary>${renderWasteIcons()}${renderKnowledgeCards()}</details>`;
+        <div class="workspace-section-title"><div><h3>เริ่มเล่นได้เลย</h3></div><button class="workspace-link" onclick="goGameScreen('leaderboard')">ดูอันดับเกม</button></div>
+        <div class="panel"><div class="workspace-howto"><div><span>1</span><strong>เลือกภารกิจ</strong><p>เริ่มจากด่านที่ปลดล็อก</p></div><div><span>2</span><strong>ตอบคำถาม</strong><p>เลือกวิธีจัดการขยะที่ถูกต้อง</p></div><div><span>3</span><strong>รับรางวัล</strong><p>สะสมดาวและบันทึกคะแนน</p></div></div>${soundToggleButton()}</div>
+        <details class="panel workspace-accordion" style="margin-top:14px"><summary>ความรู้ก่อนเล่น</summary>${renderWasteIcons()}${renderKnowledgeCards()}</details>`;
     }
 
     function renderGameProfile() {
@@ -4224,50 +4237,27 @@ function impactSummary() {
     function renderImpact() {
       const impact = impactSummary();
       const d = state.data.dashboard;
-      const beforeAfter = state.data.householdSummary.map((h) => ({
-        label: h.HouseholdName,
-        value: Math.round(Number(h.TotalCO2e || 0) / Math.max(1, Number(h.TotalSubmissions || 1))),
-      }));
+      const months = (d.monthSeries || []).map(row=>({...row,total:Number(row.general||0)+Number(row.recycle||0)+Number(row.organic||0)+Number(row.hazardous||0)}));
+      const households = state.data.householdSummary || [];
+      const average = households.map(h=>({label:h.HouseholdName,value:Number(h.TotalCO2e||0)/Math.max(1,Number(h.TotalSubmissions||1))}));
+      const metrics = [['ลดคาร์บอนได้',format(impact.co2e),'kgCO₂e','impact'],['ขยะที่บันทึก',format(impact.totalWaste),'kg','edit'],['รายการที่ส่ง',impact.records,'รายการ','book'],['ขยะที่จัดการ',format(impact.managedWaste),'kg','mission']];
       document.getElementById('impact').innerHTML = `
-        <div class="impact-hero">
-          <div>
-            <h3>ผลกระทบของเรา Impact Dashboard 📊</h3>
-            <p>ระบบ Green Passport ไม่ได้เป็นเพียงเว็บบันทึกข้อมูล แต่เป็นเครื่องมือที่สร้างผลลัพธ์จริง โดยสามารถติดตามการจัดการขยะของครัวเรือน ${impact.households} ครัวเรือน เกิดข้อมูล ${impact.records} รายการ และลดการปล่อยก๊าซเรือนกระจกได้รวม ${format(impact.co2e)} kgCO₂e</p>
-            <div class="guide-actions">
-              <button class="btn yellow" onclick="exportCsv('impact')">Export Impact CSV</button>
-              <button class="btn secondary" onclick="showPage('starterKit')">ดูชุดขยายผล</button>
-            </div>
+        <div class="workspace-page-action"><div><h3>${isStaffUser()?'ผลลัพธ์ของโครงการ':'ผลลัพธ์ของคุณ'}</h3><p>ข้อมูลสรุปจากรายการที่บันทึกไว้ในระบบ</p></div><div class="btn-row"><button class="btn ghost" onclick="refreshWorkspaceData()">อัปเดตข้อมูล</button>${isStaffUser()?'<button class="btn" onclick="exportCsv(\'impact\')">ดาวน์โหลดรายงาน</button>':''}</div></div>
+        <div class="workspace-impact-stats">${metrics.map(([label,value,unit,icon])=>`<div class="workspace-stat"><div class="workspace-stat-copy"><span>${label}</span><strong>${value} <small>${unit}</small></strong></div><span class="workspace-stat-icon">${icons[icon]}</span></div>`).join('')}</div>
+        <div class="grid two" style="margin-top:15px">
+          <div class="panel chart-card"><h3>คาร์บอนที่ลดได้รายเดือน</h3>${months.length?barChart(months,'month','co2e','kgCO₂e'):'<div class="workspace-chart-empty">ยังไม่มีข้อมูลรายเดือน</div>'}</div>
+          <div class="panel chart-card"><h3>สัดส่วนขยะ 4 ประเภท</h3>${impact.records?wasteTypeBars():'<div class="workspace-chart-empty">ยังไม่มีรายการบันทึกขยะ</div>'}</div>
+        </div>
+        <details class="panel workspace-accordion" style="margin-top:15px"><summary>ข้อมูลและกราฟเพิ่มเติม</summary>
+          <div class="grid two">
+            <div class="panel chart-card"><h3>ขยะรวมรายเดือน</h3>${barChart(months,'month','total','kg')}</div>
+            <div class="panel chart-card"><h3>แนวโน้มขยะทั่วไป</h3>${barChart(months,'month','general','kg')}</div>
+            <div class="panel chart-card"><h3>ขยะอินทรีย์ที่จัดการ</h3>${barChart(months,'month','organicManaged','kg')}</div>
+            <div class="panel chart-card"><h3>คาร์บอนเฉลี่ยต่อรายการของครัวเรือน</h3>${barChart(average,'label','value','kgCO₂e')}</div>
           </div>
-          ${greenBuddy('นี่คือหน้าสำหรับผู้บริหารและกรรมการ ใช้ดูผลลัพธ์เชิงปริมาณ ตรวจสอบได้ และขยายผลได้ 🌍', true)}
-        </div>
-        <div class="impact-grid">
-          ${[
-            ['ครัวเรือนที่เข้าร่วม', impact.households, 'ครัวเรือน'],
-            ['รายการบันทึกทั้งหมด', impact.records, 'รายการ'],
-            ['ผู้มีส่วนร่วมทั้งหมด', impact.participants, 'คน'],
-            ['นักเรียนแกนนำ', impact.studentLeaders, 'คน'],
-            ['สมาชิกครอบครัว', impact.familyMembers, 'คน'],
-            ['ขยะรวมที่บันทึกได้', format(impact.totalWaste), 'kg'],
-            ['ขยะจัดการถูกวิธี', format(impact.managedWaste), 'kg'],
-            ['ลดก๊าซเรือนกระจก', format(impact.co2e), 'kgCO₂e'],
-            ['พฤติกรรมลดขยะต้นทาง', impact.reduceActions, 'ครั้ง'],
-            ['Zero Waste Home', impact.zeroWasteHomes, 'ครัวเรือน'],
-            ['Badge ที่ได้รับ', impact.badges, 'Badge'],
-            ['ผู้เล่น Trash Hero', impact.gamePlayers, 'คน'],
-          ].map(([label, value, unit]) => `<div class="impact-card"><span>${label}</span><strong>${value}</strong><small>${unit}</small></div>`).join('')}
-        </div>
-        <div class="grid two" style="margin-top:16px">
-          <div class="panel chart-card"><h3>1. ขยะรวมรายเดือน</h3>${barChart(d.monthSeries, 'month', 'general', 'kg ขยะทั่วไป')}<p class="chart-note">ใช้ติดตามแนวโน้มปริมาณขยะที่ครัวเรือนบันทึก</p></div>
-          <div class="panel chart-card"><h3>2. ขยะ 4 ประเภท</h3>${wasteTypeBars()}<p class="chart-note">เปรียบเทียบทั่วไป รีไซเคิล อินทรีย์ และอันตราย</p></div>
-          <div class="panel chart-card"><h3>3. แนวโน้มขยะทั่วไปลดลง</h3>${barChart(d.monthSeries, 'month', 'general', 'kg')}<p class="chart-note">เป้าหมายคือให้ขยะทั่วไปลดลงต่อเนื่อง</p></div>
-          <div class="panel chart-card"><h3>4. อินทรีย์จัดการถูกวิธี</h3>${barChart(d.monthSeries, 'month', 'organicManaged', 'kg')}<p class="chart-note">สะท้อนการทำปุ๋ยหมัก น้ำหมัก หรือใช้ประโยชน์</p></div>
-          <div class="panel chart-card"><h3>5. คาร์บอนสะสม</h3>${barChart(d.monthSeries, 'month', 'co2e', 'kgCO₂e')}<p class="chart-note">ยอดลดคาร์บอนสะสมแสดงผลลัพธ์เป็นตัวเลข</p></div>
-          <div class="panel chart-card"><h3>6. ก่อน–หลังรายครัวเรือน</h3>${barChart(beforeAfter, 'label', 'value', 'คะแนนพัฒนา')}<p class="chart-note">ใช้เล่าเรื่องพัฒนาการของครัวเรือนต้นแบบ</p></div>
-        </div>
-        <div class="panel" style="margin-top:16px">
-          <h3>Green Buddy วิเคราะห์อัตโนมัติ</h3>
-          <div class="buddy-advice-grid">${adviceRules.map((rule) => `<div class="advice-card"><strong>${rule.Emoji} ${rule.AdviceTitle}</strong><p>${rule.AdviceText}</p><small>กฎ: ${rule.Condition} | แนะนำ: ${rule.SuggestedAction}</small></div>`).join('')}</div>
-        </div>`;
+          <div class="workspace-impact-stats" style="margin-top:14px">${[['ครัวเรือน',impact.households,'ครัวเรือน'],['พฤติกรรมลดขยะ',impact.reduceActions,'ครั้ง'],['ครัวเรือนที่ส่งอย่างน้อย 3 ครั้ง',impact.zeroWasteHomes,'ครัวเรือน'],['Badge ที่ได้รับ',impact.badges,'Badge']].map(([label,value,unit])=>`<div class="workspace-stat"><div class="workspace-stat-copy"><span>${label}</span><strong>${value} <small>${unit}</small></strong></div></div>`).join('')}</div>
+        </details>
+        <div class="panel workspace-impact-next" style="margin-top:15px"><div><h3>ทำให้ผลลัพธ์ดีขึ้น</h3><p>เรียนรู้วิธีลดและแยกขยะ แล้วบันทึกกิจกรรมของคุณอย่างต่อเนื่อง</p></div><div class="btn-row"><button class="btn ghost" onclick="showPage('guide')">ดูคู่มือ</button><button class="btn" onclick="showPage('record')">บันทึกขยะ</button>${isStaffUser()?'<button class="btn ghost" onclick="showPage(\'starterKit\')">ชุดขยายผล</button>':''}</div></div>`;
     }
 
     function renderDashboard() {

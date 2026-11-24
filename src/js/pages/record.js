@@ -37,12 +37,12 @@
               <div class="workspace-info">หลังส่งรายการ ครูจะตรวจสอบข้อมูลก่อนเปลี่ยนสถานะเป็นผ่านการตรวจสอบ</div>
             </div>
             <div id="recordFormError" class="workspace-form-error" role="alert" hidden></div>
-            <div class="workspace-form-actions"><button type="button" class="btn ghost" id="recordBack">ย้อนกลับ</button><button type="submit" class="btn" id="recordNext">ขั้นตอนถัดไป</button></div>
+            <div class="workspace-form-actions"><div class="workspace-mobile-estimate"><span>ประมาณการคาร์บอน</span><strong><span id="liveCo2eMobile">0.00</span> kgCO₂e</strong></div><button type="button" class="btn ghost" id="recordBack">ย้อนกลับ</button><button type="submit" class="btn" id="recordNext">ขั้นตอนถัดไป</button></div>
           </form>
           <aside class="workspace-summary panel">
-            <span class="workspace-eyebrow">ผลลัพธ์ของกิจกรรม</span><h3>คาร์บอนที่ลดได้</h3>
+            <span class="workspace-eyebrow">ผลลัพธ์ของกิจกรรม</span><h3>ประมาณการคาร์บอน</h3>
             <div class="workspace-carbon-value"><span id="liveCo2e">0.00</span><small>kgCO₂e</small></div>
-            <p>คำนวณจากข้อมูลกิจกรรมที่คุณกรอก</p>
+            <p>คำนวณจากข้อมูลกิจกรรมที่กรอก ระบบจะตรวจสอบอีกครั้งเมื่อส่ง</p>
             <div class="workspace-summary-tip"><strong>คำแนะนำ</strong><p id="liveAdvice">เริ่มกรอกข้อมูลเพื่อดูคำแนะนำ</p></div>
             <span class="workspace-summary-note">ระบบคำนวณผลลัพธ์โดยอัตโนมัติ</span>
           </aside>
@@ -89,7 +89,9 @@
       const data = Object.fromEntries(new FormData(form).entries());
       const co2e = calculateCo2e(data);
       document.getElementById('liveCo2e').textContent = format(co2e);
-      document.getElementById('liveAdvice').textContent = advice(data, co2e);
+      const mobileEstimate = document.getElementById('liveCo2eMobile');
+      if (mobileEstimate) mobileEstimate.textContent = format(co2e);
+      document.getElementById('liveAdvice').textContent = advice(data, co2e).replace(/\p{Extended_Pictographic}/gu, '').trim();
     }
 
     async function submitRecord(event) {

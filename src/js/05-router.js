@@ -158,9 +158,12 @@
       }
       const current = pages.find(([id]) => id === state.active);
       document.body.classList.remove('auth-locked');
+      document.body.dataset.workspacePage = state.active;
       document.body.classList.toggle('chat-active', state.active === 'chat');
-      document.getElementById('pageTitle').textContent = workspaceLabel(state.active);
-      document.getElementById('pageSubtitle').textContent = workspacePages[state.active]?.[1] || '';
+      document.getElementById('pageTitle').textContent = state.active === 'home' ? 'สวัสดี, ' + (state.currentUser?.DisplayName || 'สมาชิก') : workspaceLabel(state.active);
+      document.getElementById('pageSubtitle').textContent = state.active === 'home' ? 'ภาพรวมกิจกรรม Green Passport ของคุณ' : (workspacePages[state.active]?.[1] || '');
+      const quickAction = document.getElementById('workspaceQuickAction');
+      if (quickAction) { quickAction.hidden = state.active !== 'home'; quickAction.innerHTML = icons.edit + ' บันทึกขยะ'; }
       document.getElementById('globalCarbon').textContent = format(state.data.dashboard.totalCO2e || 0);
       const carbonLabel = document.querySelector('.carbon-pill > div');
       if (carbonLabel) carbonLabel.textContent = isStaffUser() ? 'คาร์บอนในระบบ' : 'คาร์บอนของคุณ';
