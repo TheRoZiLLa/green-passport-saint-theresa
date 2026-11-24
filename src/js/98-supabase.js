@@ -113,22 +113,27 @@ async function submitLogin(event) {
   event.preventDefault();
   const d = Object.fromEntries(new FormData(event.currentTarget).entries());
   const email = String(d.login || '').trim().toLowerCase();
-  if (!email.includes('@')) return setAuthMessage('กรุณาใช้ Email ในการเข้าสู่ระบบ', 'bad');
+  if (!email.includes('@')) { showAuthNotice('validation'); return; }
   state.authBusy = true; renderAuth();
   try {
     if (!gpClient) throw new Error('ยังไม่สามารถเชื่อมต่อ Supabase');
     const { error } = await gpClient.auth.signInWithPassword({ email, password: String(d.password || '') });
     if (error) throw error;
     await gpSetUser();
-  } catch (error) { state.authBusy = false; setAuthMessage(error.message, 'bad'); }
-  finally { state.authBusy = false; }
+  } catch (error) {
+    state.authBusy = false;
+    const kind = authNoticeKind(error);
+    setAuthMessage(kind === 'pending' ? authNoticeCopy.pending.title : authNoticeCopy[kind].text, kind === 'pending' ? 'ok' : 'bad');
+    showAuthNotice(kind, email, error.message);
+  } finally { state.authBusy = false; if (!state.currentUser) renderAuth(); }
 }
 
 async function submitSignup(event) {
   event.preventDefault();
   const d = Object.fromEntries(new FormData(event.currentTarget).entries());
-  if (!d.Email || !d.Consent || String(d.Password || '').length < 8 || d.Password !== d.ConfirmPassword)
-    return setAuthMessage('ใช้ Email ยอมรับเงื่อนไข และรหัสผ่านอย่างน้อย 8 ตัวอักษร', 'bad');
+  if (!d.Email || !d.Consent || String(d.Password || '').length < 8 || d.Password !== d.ConfirmPassword) {
+    showAuthNotice('validation'); return;
+  }
   state.authBusy = true; renderAuth();
   try {
     if (!gpClient) throw new Error('ยังไม่สามารถเชื่อมต่อ Supabase');
@@ -142,12 +147,29 @@ async function submitSignup(event) {
     });
     if (error) throw error;
     if (data.session) await gpSetUser();
-    else { state.authBusy = false; state.authMode = 'login'; setAuthMessage('กรุณาตรวจสอบอีเมลยืนยันก่อนเข้าสู่ระบบ', 'ok'); }
-  } catch (error) { state.authBusy = false; setAuthMessage(error.message, 'bad'); }
-  finally { state.authBusy = false; }
+    else {
+      state.authBusy = false;
+      state.authMode = 'login';
+      setAuthMessage('ขั้นตอนถัดไป: ยืนยันอีเมล แล้วรอการอนุมัติจากโรงเรียน', 'ok');
+      document.getElementById('loginUsername').value = d.Email;
+      showAuthNotice('verify', d.Email);
+    }
+  } catch (error) {
+    state.authBusy = false;
+    const kind = authNoticeKind(error);
+    if (kind === 'pending') {
+      state.authMode = 'login';
+      setAuthMessage(authNoticeCopy.pending.title, 'ok');
+      document.getElementById('loginUsername').value = d.Email;
+    } else setAuthMessage(authNoticeCopy[kind].text, 'bad');
+    showAuthNotice(kind, d.Email, error.message);
+  } finally { state.authBusy = false; if (!state.currentUser) renderAuth(); }
 }
 
 async function logout() {
+  state.authMessage = ''; state.authMessageType = '';
+  const notice = document.getElementById('gpAuthNotice');
+  if (notice?.open) notice.close();
   gpStopChat(); if (gpClient) await gpClient.auth.signOut();
   state.currentUser = null; state.adminPIN = ''; state.data = makeEmptyData();
   state.chatIdentity = {}; state.active = 'home'; state.authMode = 'login'; renderAuth();
@@ -223,7 +245,14 @@ async function init() {
         gpStopChat(); state.currentUser = null; state.adminPIN = ''; state.data = makeEmptyData(); renderAuth();
       }
     });
-  } catch (error) { setAuthMessage('ไม่สามารถเชื่อมต่อระบบใหม่: ' + error.message, 'bad'); }
+  } catch (error) {
+    const kind = authNoticeKind(error);
+    setAuthMessage(kind === 'pending' ? authNoticeCopy.pending.title : authNoticeCopy[kind].text, kind === 'pending' ? 'ok' : 'bad');
+    const { data } = gpClient ? await gpClient.auth.getSession().catch(() => ({ data: null })) : { data: null };
+    const email = data?.session?.user?.email || '';
+    if (email && document.getElementById('loginUsername')) document.getElementById('loginUsername').value = email;
+    showAuthNotice(kind, email, error.message);
+  }
 }
 
 init();

@@ -1730,7 +1730,90 @@
     }
 
     function showAuthHelp() {
-      setAuthMessage('กรุณาใช้อีเมลที่สมัครและยืนยันอีเมลแล้ว หากบัญชียังรออนุมัติหรือลืมรหัสผ่าน โปรดติดต่อผู้ดูแลระบบของโรงเรียน', '');
+      showAuthNotice('help', document.getElementById('loginUsername')?.value || '');
+    }
+
+    let authResendUntil = 0;
+    const authNoticeCopy = {
+      verify: { title: 'ตรวจสอบอีเมลของคุณ', text: 'ส่งคำขอสมัครสมาชิกแล้ว! เปิดกล่องจดหมายและกดปุ่มยืนยันในอีเมลจาก Green Passport หรือ Supabase ก่อนเข้าสู่ระบบ', tone: 'info', step: 2 },
+      unconfirmed: { title: 'ยังไม่ได้ยืนยันอีเมล', text: 'กรุณาเปิดอีเมลที่ใช้สมัคร แล้วกดลิงก์ Confirm your signup หากหาไม่พบ ให้ตรวจสอบ Spam หรือขอส่งอีเมลใหม่', tone: 'warning', step: 2 },
+      pending: { title: 'รอการอนุมัติจากโรงเรียน', text: 'ยืนยันอีเมลแล้วเรียบร้อย ตอนนี้บัญชีของคุณอยู่ในขั้นตอนตรวจสอบโดยผู้ดูแลโรงเรียน ยังไม่สามารถใช้งานระบบได้จนกว่าจะได้รับอนุมัติ', tone: 'info', step: 3 },
+      approved: { title: 'บัญชีพร้อมใช้งานแล้ว!', text: 'โรงเรียนอนุมัติบัญชีของคุณแล้ว เริ่มต้นใช้งาน Green Passport ได้เลย', tone: 'info', step: 4 },
+      credentials: { title: 'เข้าสู่ระบบไม่สำเร็จ', text: 'อีเมลหรือรหัสผ่านไม่ถูกต้อง หรือคุณอาจยังไม่ได้ยืนยันอีเมล กรุณาตรวจสอบข้อมูลและอีเมลยืนยันอีกครั้ง', tone: 'error' },
+      existing: { title: 'ไม่สามารถสมัครบัญชีใหม่ได้', text: 'หากเคยสมัครด้วยอีเมลนี้แล้ว กรุณาตรวจสอบอีเมลยืนยันหรือกลับไปเข้าสู่ระบบ', tone: 'warning' },
+      network: { title: 'เชื่อมต่อระบบไม่สำเร็จ', text: 'กรุณาตรวจสอบอินเทอร์เน็ต แล้วลองใหม่อีกครั้ง หากยังพบปัญหาให้ติดต่อผู้ดูแลระบบ', tone: 'error' },
+      rate: { title: 'กรุณารอสักครู่', text: 'มีการส่งคำขอหลายครั้งในช่วงเวลาสั้น ๆ กรุณาลองใหม่ภายหลัง', tone: 'warning' },
+      validation: { title: 'กรุณาตรวจสอบข้อมูล', text: 'ตรวจสอบช่องที่จำเป็น รหัสผ่าน และการยอมรับเงื่อนไขให้ครบถ้วนก่อนดำเนินการ', tone: 'warning' },
+      help: { title: 'มีปัญหาในการเข้าสู่ระบบ?', text: 'ใช้ Email ในการเข้าสู่ระบบ หากเพิ่งสมัคร ให้ยืนยันอีเมลก่อนและรออนุมัติจากโรงเรียน หากลืมรหัสผ่านให้ติดต่อผู้ดูแลระบบ', tone: 'info' },
+      error: { title: 'ดำเนินการไม่สำเร็จ', text: 'เกิดข้อผิดพลาดระหว่างดำเนินการ กรุณาลองใหม่หรือติดต่อผู้ดูแลระบบ', tone: 'error' }
+    };
+
+    function authNoticeKind(error) {
+      const code = String(error?.code || '');
+      const message = String(error?.message || error || '');
+      if (/รอการอนุมัติจากโรงเรียน/.test(message)) return 'pending';
+      if (code === 'email_not_confirmed' || /email not confirmed/i.test(message)) return 'unconfirmed';
+      if (code === 'invalid_credentials' || /invalid login credentials/i.test(message)) return 'credentials';
+      if (code === 'user_already_exists' || /already registered|already exists/i.test(message)) return 'existing';
+      if (/rate.limit|too many requests|over_email_send_rate_limit/i.test(code + ' ' + message)) return 'rate';
+      if (/fetch|network|configuration missing|Supabase ยังไม่พร้อม|ยังไม่สามารถเชื่อมต่อ/i.test(message)) return 'network';
+      return 'error';
+    }
+
+    function showAuthNotice(kind, email = '', detail = '') {
+      const copy = authNoticeCopy[kind] || authNoticeCopy.error;
+      let modal = document.getElementById('gpAuthNotice');
+      if (!modal) {
+        modal = document.createElement('dialog');
+        modal.id = 'gpAuthNotice';
+        modal.className = 'auth-notice-dialog';
+        modal.setAttribute('aria-labelledby', 'gpAuthNoticeTitle');
+        modal.setAttribute('aria-describedby', 'gpAuthNoticeText');
+        document.body.append(modal);
+      }
+      const emailConfirmed = kind === 'pending';
+      const validEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+      const canResend = validEmail && ['verify', 'unconfirmed', 'credentials', 'help', 'existing'].includes(kind);
+      const canOpenMail = validEmail && ['verify', 'unconfirmed'].includes(kind) && /@gmail\.com$/i.test(email);
+      const steps = ['สมัครสมาชิก', 'ยืนยันอีเมล', 'โรงเรียนอนุมัติ'];
+      modal.dataset.tone = copy.tone;
+      modal.innerHTML = `<div class="auth-notice-top"><span class="auth-notice-icon">${kind === 'pending' ? authIcons.check : kind === 'verify' || kind === 'unconfirmed' ? authIcons.mail : copy.tone === 'error' || copy.tone === 'warning' ? '!' : 'i'}</span><button type="button" class="auth-notice-close" aria-label="ปิดหน้าต่างแจ้งเตือน">×</button></div>
+        <h2 id="gpAuthNoticeTitle">${copy.title}</h2><p id="gpAuthNoticeText">${copy.text}</p>
+        ${validEmail && ['verify','unconfirmed','pending'].includes(kind) ? `<div class="auth-notice-email">${escapeHtml(email)}</div>` : ''}
+        ${copy.step ? `<ol class="auth-notice-steps" aria-label="สถานะบัญชี">${steps.map((step, index) => `<li class="${index + 1 < copy.step ? 'done' : index + 1 === copy.step ? 'current' : ''}" ${index + 1 === copy.step ? 'aria-current="step"' : ''}><span>${index + 1 < copy.step ? authIcons.check : index + 1}</span><div>${step}<small>${index + 1 < copy.step ? 'เรียบร้อย' : index + 1 === copy.step ? 'กำลังดำเนินการ' : 'ยังไม่ถึงขั้นตอนนี้'}</small></div></li>`).join('')}</ol>` : ''}
+        <p class="auth-notice-feedback" id="gpAuthNoticeFeedback" role="status" hidden></p>
+        <div class="auth-notice-actions">
+          ${canOpenMail ? '<a class="auth-primary" href="https://mail.google.com/" target="_blank" rel="noopener noreferrer">เปิด Gmail</a>' : ''}
+          ${emailConfirmed ? '<button type="button" class="auth-primary" data-notice-retry>ตรวจสอบสถานะอีกครั้ง</button><button type="button" class="auth-secondary" data-notice-logout>ออกจากระบบ</button>' : `<button type="button" class="${canOpenMail ? 'auth-secondary' : 'auth-primary'}" data-notice-dismiss>${copy.step === 2 ? 'กลับไปเข้าสู่ระบบ' : 'เข้าใจแล้ว'}</button>`}
+          ${canResend ? '<button type="button" class="auth-notice-resend" data-notice-resend>ส่งอีเมลยืนยันใหม่</button>' : ''}
+        </div>`;
+      const dismiss = () => modal.close();
+      modal.querySelector('.auth-notice-close').addEventListener('click', dismiss);
+      modal.querySelector('[data-notice-dismiss]')?.addEventListener('click', dismiss);
+      modal.querySelector('[data-notice-logout]')?.addEventListener('click', async () => { dismiss(); await logout(); });
+      modal.querySelector('[data-notice-retry]')?.addEventListener('click', async event => {
+        const button = event.currentTarget;
+        button.disabled = true; button.textContent = 'กำลังตรวจสอบ...';
+        try { await gpSetUser(); showAuthNotice('approved'); }
+        catch (error) { showAuthNotice(authNoticeKind(error), email, error.message); }
+      });
+      const resend = modal.querySelector('[data-notice-resend]');
+      if (resend) resend.addEventListener('click', async () => {
+        const feedback = modal.querySelector('#gpAuthNoticeFeedback');
+        feedback.hidden = false;
+        if (Date.now() < authResendUntil) { feedback.textContent = 'กรุณารอประมาณ ' + Math.ceil((authResendUntil - Date.now()) / 1000) + ' วินาทีก่อนส่งใหม่'; return; }
+        if (!gpClient) { feedback.textContent = 'ระบบยังไม่พร้อม กรุณารีเฟรชหน้าเว็บ'; return; }
+        authResendUntil = Date.now() + 60000;
+        resend.disabled = true;
+        try {
+          const { error } = await gpClient.auth.resend({ type: 'signup', email, options: { emailRedirectTo: location.origin } });
+          if (error) throw error;
+          feedback.textContent = 'หากบัญชีนี้ยังรอการยืนยัน คุณจะได้รับอีเมลใหม่ กรุณาตรวจสอบกล่องจดหมายและ Spam';
+        } catch (error) { feedback.textContent = authNoticeCopy[authNoticeKind(error)]?.text || authNoticeCopy.error.text; }
+        finally { resend.disabled = false; }
+      });
+      if (!modal.open) modal.showModal();
+      modal.querySelector('.auth-primary')?.focus();
     }
 
     function authLookupKey(value) {
@@ -5140,22 +5223,27 @@ async function submitLogin(event) {
   event.preventDefault();
   const d = Object.fromEntries(new FormData(event.currentTarget).entries());
   const email = String(d.login || '').trim().toLowerCase();
-  if (!email.includes('@')) return setAuthMessage('กรุณาใช้ Email ในการเข้าสู่ระบบ', 'bad');
+  if (!email.includes('@')) { showAuthNotice('validation'); return; }
   state.authBusy = true; renderAuth();
   try {
     if (!gpClient) throw new Error('ยังไม่สามารถเชื่อมต่อ Supabase');
     const { error } = await gpClient.auth.signInWithPassword({ email, password: String(d.password || '') });
     if (error) throw error;
     await gpSetUser();
-  } catch (error) { state.authBusy = false; setAuthMessage(error.message, 'bad'); }
-  finally { state.authBusy = false; }
+  } catch (error) {
+    state.authBusy = false;
+    const kind = authNoticeKind(error);
+    setAuthMessage(kind === 'pending' ? authNoticeCopy.pending.title : authNoticeCopy[kind].text, kind === 'pending' ? 'ok' : 'bad');
+    showAuthNotice(kind, email, error.message);
+  } finally { state.authBusy = false; if (!state.currentUser) renderAuth(); }
 }
 
 async function submitSignup(event) {
   event.preventDefault();
   const d = Object.fromEntries(new FormData(event.currentTarget).entries());
-  if (!d.Email || !d.Consent || String(d.Password || '').length < 8 || d.Password !== d.ConfirmPassword)
-    return setAuthMessage('ใช้ Email ยอมรับเงื่อนไข และรหัสผ่านอย่างน้อย 8 ตัวอักษร', 'bad');
+  if (!d.Email || !d.Consent || String(d.Password || '').length < 8 || d.Password !== d.ConfirmPassword) {
+    showAuthNotice('validation'); return;
+  }
   state.authBusy = true; renderAuth();
   try {
     if (!gpClient) throw new Error('ยังไม่สามารถเชื่อมต่อ Supabase');
@@ -5169,12 +5257,29 @@ async function submitSignup(event) {
     });
     if (error) throw error;
     if (data.session) await gpSetUser();
-    else { state.authBusy = false; state.authMode = 'login'; setAuthMessage('กรุณาตรวจสอบอีเมลยืนยันก่อนเข้าสู่ระบบ', 'ok'); }
-  } catch (error) { state.authBusy = false; setAuthMessage(error.message, 'bad'); }
-  finally { state.authBusy = false; }
+    else {
+      state.authBusy = false;
+      state.authMode = 'login';
+      setAuthMessage('ขั้นตอนถัดไป: ยืนยันอีเมล แล้วรอการอนุมัติจากโรงเรียน', 'ok');
+      document.getElementById('loginUsername').value = d.Email;
+      showAuthNotice('verify', d.Email);
+    }
+  } catch (error) {
+    state.authBusy = false;
+    const kind = authNoticeKind(error);
+    if (kind === 'pending') {
+      state.authMode = 'login';
+      setAuthMessage(authNoticeCopy.pending.title, 'ok');
+      document.getElementById('loginUsername').value = d.Email;
+    } else setAuthMessage(authNoticeCopy[kind].text, 'bad');
+    showAuthNotice(kind, d.Email, error.message);
+  } finally { state.authBusy = false; if (!state.currentUser) renderAuth(); }
 }
 
 async function logout() {
+  state.authMessage = ''; state.authMessageType = '';
+  const notice = document.getElementById('gpAuthNotice');
+  if (notice?.open) notice.close();
   gpStopChat(); if (gpClient) await gpClient.auth.signOut();
   state.currentUser = null; state.adminPIN = ''; state.data = makeEmptyData();
   state.chatIdentity = {}; state.active = 'home'; state.authMode = 'login'; renderAuth();
@@ -5250,7 +5355,14 @@ async function init() {
         gpStopChat(); state.currentUser = null; state.adminPIN = ''; state.data = makeEmptyData(); renderAuth();
       }
     });
-  } catch (error) { setAuthMessage('ไม่สามารถเชื่อมต่อระบบใหม่: ' + error.message, 'bad'); }
+  } catch (error) {
+    const kind = authNoticeKind(error);
+    setAuthMessage(kind === 'pending' ? authNoticeCopy.pending.title : authNoticeCopy[kind].text, kind === 'pending' ? 'ok' : 'bad');
+    const { data } = gpClient ? await gpClient.auth.getSession().catch(() => ({ data: null })) : { data: null };
+    const email = data?.session?.user?.email || '';
+    if (email && document.getElementById('loginUsername')) document.getElementById('loginUsername').value = email;
+    showAuthNotice(kind, email, error.message);
+  }
 }
 
 init();

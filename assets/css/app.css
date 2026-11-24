@@ -528,6 +528,48 @@
     .auth-note svg { flex: 0 0 19px; margin-top: 1px; }
     .auth-actions { display: grid; grid-template-columns: auto 1fr; gap: 10px; }
     .auth-mode-signup .auth-form-panel { padding-top: 30px; padding-bottom: 30px; gap: 18px; }
+    /* Account journey and contextual messages — native modal traps keyboard focus. */
+    .auth-notice-dialog {
+      width: min(460px, calc(100% - 32px));
+      max-height: calc(100dvh - 32px);
+      overflow: auto;
+      border: 1px solid #dce7df;
+      border-radius: 24px;
+      padding: 28px;
+      color: #18382a;
+      background: white;
+      box-shadow: 0 24px 70px #12332335;
+      font-family: var(--font-body);
+    }
+    .auth-notice-dialog::backdrop { background: #122b20a6; backdrop-filter: blur(4px); }
+    .auth-notice-dialog[open] { animation: auth-notice-enter .18s ease-out; }
+    @keyframes auth-notice-enter { from { opacity: 0; transform: translateY(8px) scale(.985); } to { opacity: 1; transform: translateY(0) scale(1); } }
+    .auth-notice-top { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 15px; }
+    .auth-notice-icon { display: grid; place-items: center; width: 54px; height: 54px; border-radius: 17px; background: #e5f3e5; color: #286447; font-size: 25px; font-weight: 800; }
+    .auth-notice-icon svg, .auth-notice-steps svg { width: 26px; height: 26px; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+    .auth-notice-dialog[data-tone="error"] .auth-notice-icon { background: #fbe7e5; color: #b34338; }
+    .auth-notice-dialog[data-tone="warning"] .auth-notice-icon { background: #fff2d9; color: #9c631b; }
+    .auth-notice-close { background: #f2f5f2; border-radius: 50%; width: 35px; height: 35px; color: #6a8070; display: grid; place-items: center; font-size: 24px; line-height: 1; }
+    .auth-notice-dialog h2 { margin: 0 0 8px; font-size: 26px; font-weight: 800; line-height: 1.35; color: #193d2a; }
+    .auth-notice-dialog p { margin: 0; color: #586d5e; font-size: 15px; line-height: 1.7; }
+    .auth-notice-email { margin-top: 13px; background: #f1f6f1; border: 1px solid #e0e9e0; padding: 10px 12px; border-radius: 9px; font-size: 14px; font-weight: 700; overflow-wrap: anywhere; }
+    .auth-notice-steps { display: grid; gap: 13px; padding: 17px 0; margin: 10px 0 4px; list-style: none; }
+    .auth-notice-steps li { display: flex; align-items: center; gap: 12px; color: #829087; font-size: 14px; font-weight: 600; }
+    .auth-notice-steps li > span { flex: 0 0 32px; height: 32px; display: grid; place-items: center; border: 1px solid #dfe8df; background: #f2f5f2; border-radius: 50%; font-size: 13px; font-weight: 800; }
+    .auth-notice-steps li.done { color: #286447; }
+    .auth-notice-steps li.done > span { background: #e5f3e5; border-color: #e5f3e5; }
+    .auth-notice-steps li.current { color: #194c35; font-weight: 800; }
+    .auth-notice-steps li.current > span { background: #226747; border-color: #226747; color: white; }
+    .auth-notice-steps li svg { width: 17px; height: 17px; }
+    .auth-notice-steps small { display: block; font-size: 12px; font-weight: 500; color: #708577; margin-top: 1px; }
+    .auth-notice-actions { display: grid; gap: 9px; margin-top: 20px; }
+    .auth-notice-actions a { text-decoration: none; }
+    .auth-notice-resend { background: transparent; color: #226747; font-size: 14px; font-weight: 700; min-height: 42px; padding: 8px; }
+    .auth-notice-resend:disabled { opacity: .6; cursor: wait; }
+    .auth-notice-dialog .auth-notice-feedback { background: #f1f6f1; border-radius: 9px; color: #386748; padding: 11px; margin-top: 12px; font-size: 13px; }
+    .auth-notice-dialog .auth-notice-detail { font-size: 12px; color: #89958d; overflow-wrap: anywhere; margin-top: 9px; }
+    @media (max-width: 480px) { .auth-notice-dialog { padding: 22px; border-radius: 18px; } .auth-notice-dialog h2 { font-size: 23px; } }
+    @media (prefers-reduced-motion: reduce) { .auth-notice-dialog[open] { animation: none; } }
     @media (max-width: 860px) {
       .auth-screen { padding: 22px; place-items: center; }
       .auth-shell { max-width: 570px; min-height: auto; grid-template-columns: 1fr; }
